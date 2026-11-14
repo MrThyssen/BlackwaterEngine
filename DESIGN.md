@@ -43,10 +43,11 @@ so such an include simply won't resolve.
 | `Blackwater.Core` | static lib | Platform, input, renderer, camera | ✅ |
 | `Blackwater.Sandbox` | .exe | Engine test bench — try engine features with no game attached | ✅ |
 | `Blackwater.Tests` | .exe (CTest) | Unit tests | planned (M4) |
-| `Blackwater.Audio` | static lib | Sound engine — XAudio2 ([spec](docs/Audio.md)) | API stub |
-| `Blackwater.Physics` | static lib | 2D collision & queries ([spec](docs/Physics.md)) | planned (M7) |
-| `Trinity` | .exe | **The game.** Created when the first game-specific code appears | planned |
-| `Blackwater.Editor` | WPF / .NET 10 | Tooling. MSBuild, outside CMake | parked |
+| `Blackwater.Audio` | static lib | Sound engine — miniaudio ([spec](docs/Audio.md)) | API stub |
+| `Blackwater.Physics` | static lib | 2D collision, trigger volumes, AoE queries ([spec](docs/Physics.md)) | planned (M8) |
+| `Trinity` | .exe | **The game.** Created when the first game-specific code appears | planned (M8) |
+| `Blackwater.Editor` | **Avalonia** / .NET | Authoring tool, Windows + macOS. Built with `dotnet`, outside CMake | WPF template → Avalonia (E0) |
+| `Blackwater.Interop` | shared lib | Small `extern "C"` API the editor calls to host the engine | planned (E1) |
 
 **The Sandbox is not Trinity.** It is where engine features are exercised in isolation, and
 it stays useful after Trinity exists.
@@ -71,7 +72,7 @@ BlackwaterEngine/
 │   └─ src/                             implementation
 ├─ Blackwater.Audio/                    sound engine (API stub)
 ├─ Blackwater.Sandbox/                  engine test bench (src/, shaders/)
-├─ Blackwater.Editor/                   WPF, parked
+├─ Blackwater.Editor/                   Avalonia editor (currently the WPF template)
 └─ build/  bin/  lib/                   GENERATED — gitignored, safe to delete
 ```
 
@@ -124,16 +125,16 @@ $cm = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonE
 The cost, accepted on purpose: every rendering feature is written once per backend. That is
 why the RHI lands **before** models, textures and animation.
 
-**Dependencies** are no longer zero: SDL3, metal-cpp, miniaudio and the shader
-cross-compile tools. Each one is a deliberate choice recorded here — nothing gets added
-casually.
+**Dependencies** are no longer zero: SDL3, metal-cpp, miniaudio, Dear ImGui, SQLite and
+the shader cross-compile tools. Each one is a deliberate choice recorded here — nothing
+gets added casually.
 
 ### Decisions
 
 | Decision | Choice |
 |---|---|
 | API | **Direct3D 11** (Windows) / **Metal** (macOS), forward rendering |
-| Camera | **Fixed isometric**: orthographic, yaw 45°, pitch ≈ 30–35° (tuned by eye), no zoom. Follows the hero once the world outgrows the screen |
+| Camera | **Fixed isometric**: orthographic, yaw 45°, pitch ≈ 30–35° (tuned by eye), no zoom. Pans (screen edges, arrow keys) and follows the hero once the world outgrows the screen |
 | Math | **DirectXMath** — `XMMATRIX` for computation, `XMFLOAT4X4` for storage |
 | Shaders | HLSL, **compiled at runtime** (`D3DCompile`); offline compilation later |
 | Shading | One directional light (Lambert) → Blinn-Phong later |
@@ -163,63 +164,116 @@ Don't test for it by filename — the 64-bit DLL is `d3d11_3SDKLayers.dll`, not
 
 ---
 
-## 7. Modules & ownership
+## 7. Tools
 
-Parts with clean boundaries can be owned by different people. Each gets its own target,
-its own folder, and a small public API agreed up front — then the inside is the owner's
-call.
+Two tools, two jobs — neither replaces the other:
 
-| Module | Owner | Notes |
+| | **Dear ImGui** — developer tools | **Avalonia editor** — authoring |
 |---|---|---|
-| Core / renderer / camera | Christian | |
-| **Audio** (`Blackwater.Audio`) | friend | [docs/Audio.md](docs/Audio.md) |
-| **Physics** (`Blackwater.Physics`) | friend | [docs/Physics.md](docs/Physics.md) |
-| Tests | shared | Everyone tests their own module |
+| Runs | **inside the running game**, drawn over the frame | as a separate application |
+| Used | while playing: mid-pull, while something goes wrong | while building content |
+| For | fps/frame graphs, console, debug-draw toggles, live entity state, cheats, pause/slow-mo | placing enemies, editing abilities and encounters, managing assets |
 
-All work areas, the workflow, and further ideas: [docs/Collaboration.md](docs/Collaboration.md).
+ImGui is for developers only. The player-facing UI (health bars, hotbar, raid frames) gets
+its own UI system later.
+
+**Debug drawing** (lines, circles, boxes, arrows in world space, with or without depth
+testing) is engine-level and arrives with ImGui in M4 — aggro radii, AoE zones, paths and
+collision shapes all need to be *seen*.
 
 ---
 
-## 8. Roadmap
+## 8. Assets
+
+**Files in git are the source of truth. The database is a derived cache.**
+
+```
+Assets/Textures/stone_wall.png          the asset
+Assets/Textures/stone_wall.png.meta     its sidecar: GUID + import settings (JSON)
+```
+
+- Every asset has a **`.meta` sidecar** holding its **GUID** and import settings. Assets
+  refer to each other **by GUID, never by path**, so files can be moved and renamed freely.
+- Always commit the `.meta` with its asset; never hand-edit a GUID; the editor creates and
+  moves sidecars.
+- The **asset database is SQLite**, built by scanning the files and their sidecars: GUID →
+  path, type, settings, and which assets reference which. It is **gitignored and
+  rebuildable** — like Unity's `Library/` or Unreal's derived-data cache. Binary files in
+  git can't be merged; this way nothing binary that two people edit ever is.
+- At runtime, the **resource manager** loads each asset once, shares it, and manages its
+  lifetime. Names used in code (`"FireballImpact"`) become **hashed string IDs**.
+
+---
+
+## 9. Modules
+
+Each module gets its own target, its own folder, and a small public API agreed up front.
+Specs: [Audio](docs/Audio.md), [Physics](docs/Physics.md). Work areas and workflow:
+[docs/Future.md](docs/Future.md).
+
+---
+
+## 10. Roadmap
+
+Stories and tasks per milestone: [docs/Backlog.md](docs/Backlog.md).
 
 | # | Milestone | Outcome |
 |---|---|---|
 | **M0** ✅ | Heartbeat | Window, D3D11 device + flip-model swap chain, fixed-timestep loop |
 | **M1** ✅ | First geometry | Buffers, runtime HLSL, constant buffers, a spinning cube |
 | **M2** ✅ | Camera & ground | Input, ground grid, screen→world picking (orbit camera — replaced in M3) |
-| **M3** | **MVP: move a cube** | Fixed isometric camera; right-click → the cube walks there (straight line, interpolated); one directional light so the cube reads as a cube |
-| **M4** | Tests & collaboration | `Blackwater.Tests` + CTest; README; `Blackwater.Audio` skeleton (done early); CI |
-| **M5** | **Cross-platform** | RHI interface; D3D11 moved behind it; SDL3 window + input; Metal backend; macOS presets + CI. **The MVP runs on both** |
-| **M6** | Models | glTF meshes, textures, materials. Your own model replaces the cube |
-| **M7** | Animation | Skeletons, skinning, idle/walk clips |
-| **M8** | World | Walkability grid, A\* pathfinding, collision, camera follow. **`Trinity` target is created** |
-| **M9** | Combat | Ability hotbar (`1 2 3`, `Q W E D`), cooldowns, an enemy |
+| **M3** | **MVP: move a cube** | Fixed isometric camera ✅; right-click → the cube walks there (straight line, interpolated); one directional light so the cube reads as a cube |
+| **M4** | Tests, collaboration & debug tools | `Blackwater.Tests` + CTest; CI; logging; debug drawing; **ImGui** overlay + console; game clock (pause, time scale); command-line args; crash dumps |
+| **M5** | **Cross-platform** | RHI; D3D11 moved behind it; SDL3 window + input; Metal backend; **UTF-8 everywhere**; file-system module; macOS presets + CI. **The MVP runs on both** |
+| **M6** | Assets & models | Resource manager; string IDs; `.meta` sidecars + **SQLite asset database**; config file; glTF meshes, textures, materials |
+| **M7** | Animation | Skeletons, skinning, quaternions, idle/walk clips |
+| **M8** | World | Game object model; walkability grid, A\*, collision; trigger volumes; level loading; camera follow + **panning** (screen edges, arrow keys). **`Trinity` target is created** |
+| **M9** | Combat | Ability hotbar (`1 2 3`, `Q W E D`), cooldowns, an enemy; AoE shapes; combat events + log; state machines for abilities and boss phases |
 | **M10** | Party | Three heroes: selection and follow AI |
 | **M11** | RPG & story | Stats, items, dialogue, quest flags, save/load |
 
-Tests come before cross-platform on purpose: the RHI refactor moves a lot of code, and tests
-are what prove nothing broke.
+**Editor track (Avalonia):** **E0** shell on Windows + macOS (anytime) · **E1** live engine
+viewport via `Blackwater.Interop` (after M5) · **E2** asset browser on the asset database
+(with M6).
 
-Audio runs alongside from M4. The editor stays parked until there is data worth editing.
+Tests and debug tools come before cross-platform on purpose: the RHI refactor moves a lot of
+code, and tests are what prove nothing broke.
+
+Audio runs alongside from M4. Full triage of engine systems — what we build, when, and what
+we skip: [docs/EngineSystems.md](docs/EngineSystems.md).
 
 ---
 
-## 9. Conventions
+## 11. Conventions
 
 - **RAII everywhere.** No raw `new`/`delete`, no raw COM pointers.
+- **Subsystems are members, not singletons.** `Application` owns them; C++ constructs them
+  in declaration order and destroys them in reverse — that *is* the start-up/shut-down order.
+- **UTF-8 everywhere.** Strings are UTF-8 `std::string`; conversion to UTF-16 happens only
+  at the Windows API boundary. No `wchar_t` outside platform code (it is 16-bit on Windows,
+  32-bit on macOS).
+- **Paths resolve from the executable**, never from the working directory.
 - **Check every `HRESULT`** (`BW_CHECK`) and every Win32 failure (`BW_CHECK_WIN32`) — the
   report names the call, file and line.
 - **Headers declare, sources define.** No `using namespace` in a header.
+- **Members are `_camelCase`** (`_width`, `_swapChain`) — never `m_`. Always a lowercase
+  letter after the underscore: `_Upper` names are reserved in C++.
 - **Source lists are explicit** in `CMakeLists.txt` — no `file(GLOB)`.
 
 ---
 
-## 10. Open decisions
+## 12. Decisions
 
 - [x] macOS support — **yes, from M5**: Metal backend, SDL3 for window + input on both
+- [x] Developer tools — **Dear ImGui**, inside the game
+- [x] Editor — **Avalonia**, cross-platform
+- [x] Text — **UTF-8 everywhere**
+- [x] Assets — files + `.meta` sidecars in git; **SQLite** database as a derived cache
 
+**Open:**
 - [ ] Test framework for M4: **doctest** (single header) vs a hand-rolled one
-- [ ] glTF parsing for M5: **cgltf** (single header, narrow exception to "no dependencies") vs hand-written
+- [ ] glTF parsing for M6: **cgltf** (single header) vs hand-written
+- [ ] Game object model for M8: components on game objects vs full ECS
 - [ ] Exact isometric pitch: true isometric (35.26°) vs game-style (~30°)
 - [ ] Repo licence
 - [ ] Final name for the game

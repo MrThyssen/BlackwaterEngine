@@ -1,28 +1,24 @@
-# Collaboration
-
-How two people work on Blackwater without stepping on each other.
+# Future Development Ideas
 
 ## Work areas
 
-Good handoffs have a clear boundary: their own folder, a small agreed API, and little
-reason to edit someone else's files.
 
 | Area | What | Boundary | When |
 |---|---|---|---|
 | **Audio** | Sound engine (miniaudio, Windows + macOS) | `Blackwater.Audio` — [spec](Audio.md) | now |
 | **Metal backend** | macOS renderer behind the RHI | `Blackwater.RHI.Metal` | M5 |
-| **Physics / collision** | 2D collision, walkability, queries | `Blackwater.Physics` — [spec](Physics.md) | M7 |
+| **Physics / collision** | 2D collision, walkability, trigger volumes, AoE queries | `Blackwater.Physics` — [spec](Physics.md) | M8 |
 | **CI** | GitHub Actions: build + run tests on every pull request | `.github/workflows/` | M4 |
-| **Debug overlay / profiler** | On-screen frame time, counters, toggle with a key | Reads engine data, never changes it | after M3 |
-| **Lighting & shading** | Directional light → Blinn-Phong → shadows | Shaders + a lighting constant buffer | M3 → M5 |
-| **UI / HUD** | Health bars, ability hotbar, menus | Draws 2D on top of the frame | M8 |
-| **Asset pipeline** | Validate / convert models and textures before the engine loads them | Separate tool `.exe` | M5 |
-| **Editor** | `Blackwater.Editor` (WPF / C#) | Its own .NET project | later |
+| **Debug overlay / profiler** | Dear ImGui: frame graphs, console, debug-draw toggles, live state | Reads engine data, never changes it | M4 |
+| **Lighting & shading** | Directional light → Blinn-Phong → shadows | Shaders + a lighting constant buffer | M3 → M6 |
+| **UI / HUD** | Health bars, ability hotbar, raid frames (not ImGui) | Draws 2D on top of the frame | M9 |
+| **Asset pipeline** | `.meta` sidecars, SQLite asset database, import/validate models and textures | Separate tool + editor | M6 |
+| **Editor** | `Blackwater.Editor` — **Avalonia**, Windows + macOS | Its own .NET project | E0 anytime |
 | **Lua scripting** | Gameplay scripts, triggers | Embedded Lua behind a small API | later |
 | **Particles / VFX** | Spell effects, dust, sparks | Its own renderer pass | after combat |
 | **Gamepad** | XInput controller support | Feeds `Input` like the mouse does | anytime |
-| **Save / load** | Serialise game state | Plain data, no renderer | M10 |
-| **Logging** | Levels, file output, replaces `OutputDebugString` | Tiny, used by everyone | anytime |
+| **Save / load** | Serialise game state | Plain data, no renderer | M11 |
+| **Logging** | Levels, categories, file output | Tiny, used by everyone | M4 |
 
 ## Developing on macOS
 

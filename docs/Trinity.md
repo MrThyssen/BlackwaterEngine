@@ -12,10 +12,12 @@
 A **single-player 2.5D isometric RPG**: 3D characters in a 3D world, seen from a fixed
 isometric camera. Diablo / Baldur's Gate lineage.
 
-You will eventually control a **party of three heroes** — that is the "Trinity". The game
-starts with **one hero**; the other two arrive once one hero plays well.
+**The feeling to evoke: being in a raid** in the popular MMORPGs — but single-player, with
+the constraint that the player controls at most **three heroes**, each with **4–6
+abilities**. That trio is the "Trinity". The game starts with **one hero**; the other two
+arrive once one hero plays well.
 
-Feel: explore, fight, find gear, make choices that shape the story.
+Around the raids: explore, find gear, make choices that shape the story.
 Tone: **dark and grounded.**
 
 ---
@@ -24,7 +26,8 @@ Tone: **dark and grounded.**
 
 | | |
 |---|---|
-| **Camera** | **Fixed isometric** — locked angle, no rotation, no zoom. Follows the hero as the world grows |
+| **Camera** | **Fixed isometric** — locked angle, no rotation, no zoom |
+| **Pan camera** | Mouse at the screen edges, or **↑ ↓ ← →** |
 | **Move** | **Right-click** the ground |
 | **Abilities** | **`1` `2` `3`** and **`Q` `W` `E` `D`** |
 | **Attack** | Right-click an enemy |

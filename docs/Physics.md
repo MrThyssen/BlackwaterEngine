@@ -1,6 +1,6 @@
 # Blackwater.Physics — Collision & Movement
 
-> Owner: *(friend)* · Target: `Blackwater.Physics` (static lib, not created yet) · Planned: M7
+> Target: `Blackwater.Physics` (static lib, not created yet) · Planned: M8
 
 ## Scope: collision, not a physics engine
 
@@ -22,6 +22,12 @@ plane** — circles and grid cells, no Y. Rendering stays 3D; physics never need
 | Character vs world | circle vs grid | Slide along walls instead of stopping dead |
 | Character vs character | circle vs circle | Push apart so units never overlap |
 | Queries | ray, circle overlap | Projectile hits, "enemies within range", click on a unit |
+| **Trigger volumes** | circle, box | "Don't stand in the fire", boss-room entry, phase boundaries — report *enter / stay / leave* |
+| **AoE shapes** | circle, cone, rectangle (OBB) | Ability hit tests: raid-wide circle, frontal cleave, beam / line attack. The rectangle is where OBBs and the separating-axis theorem earn their place |
+| Broad phase | AABB | Skip pairs that can't possibly touch, once there are many units |
+
+Trigger volumes and AoE shapes are what make this a *raid* game's collision module, not a
+generic one: most boss mechanics come down to "who is inside this shape, and when".
 
 ## Rules from the engine
 
@@ -30,22 +36,3 @@ plane** — circles and grid cells, no Y. Rendering stays 3D; physics never need
 - **Never sees `alpha`.** Interpolation is drawing only; physics works on current state.
 - Plain data in, plain data out: positions as floats, no D3D or engine types in the API.
 - Unit-testable without a window — this module should have the most tests in the engine.
-
-## API sketch (to agree before starting)
-
-```cpp
-struct Circle { float x, z, radius; };
-
-class PhysicsWorld {
-public:
-    BodyId AddBody(Circle shape);
-    void   SetDesiredVelocity(BodyId, float vx, float vz);
-    void   Step(float dt);                       // resolve walls, then separation
-    Circle GetBody(BodyId) const;
-
-    bool   Raycast(Ray, RayHit&) const;
-    void   OverlapCircle(Circle, std::vector<BodyId>& out) const;
-
-    void   SetWalkable(int cellX, int cellZ, bool walkable);
-};
-```

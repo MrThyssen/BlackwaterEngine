@@ -32,5 +32,7 @@ the VS 2026 generator. **Rider:** Settings → CMake → enable the *Ninja - Deb
 
 - [DESIGN.md](DESIGN.md) — engine design and roadmap
 - [docs/Trinity.md](docs/Trinity.md) — the game
-- [docs/Collaboration.md](docs/Collaboration.md) — work areas and workflow
+- [docs/Backlog.md](docs/Backlog.md) — epics, stories and tasks
+- [docs/Future.md](docs/Future.md) — work areas, workflow and future ideas
+- [docs/EngineSystems.md](docs/EngineSystems.md) — which engine systems we build, when, and what we skip
 - [docs/Audio.md](docs/Audio.md), [docs/Physics.md](docs/Physics.md) — module specs
