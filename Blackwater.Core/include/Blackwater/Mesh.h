@@ -46,15 +46,15 @@ namespace bw
         /// Binds the buffers and issues a DrawIndexed.
         void Draw(ID3D11DeviceContext* context) const;
 
-        [[nodiscard]] uint32_t IndexCount() const noexcept { return m_indexCount; }
+        [[nodiscard]] uint32_t IndexCount() const noexcept { return _indexCount; }
 
     private:
-        ComPtr<ID3D11Buffer> m_vertexBuffer;
-        ComPtr<ID3D11Buffer> m_indexBuffer;
+        ComPtr<ID3D11Buffer> _vertexBuffer;
+        ComPtr<ID3D11Buffer> _indexBuffer;
 
-        uint32_t m_vertexStride = 0;
-        uint32_t m_indexCount   = 0;
+        uint32_t _vertexStride = 0;
+        uint32_t _indexCount   = 0;
 
-        D3D11_PRIMITIVE_TOPOLOGY m_topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        D3D11_PRIMITIVE_TOPOLOGY _topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     };
 }

@@ -45,8 +45,8 @@ namespace bw
     }
 
     Window::Window(const wchar_t* title, uint32_t width, uint32_t height)
-        : m_width(width)
-        , m_height(height)
+        : _width(width)
+        , _height(height)
     {
         RegisterWindowClass();
 
@@ -59,7 +59,7 @@ namespace bw
         RECT rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
         BW_CHECK_WIN32(::AdjustWindowRect(&rect, style, FALSE));
 
-        m_hwnd = ::CreateWindowExW(
+        _hwnd = ::CreateWindowExW(
             0,
             kWindowClassName,
             title,
@@ -73,20 +73,20 @@ namespace bw
             this);                // -> arrives as CREATESTRUCTW::lpCreateParams
 
         // Checked by hand rather than through BW_CHECK_WIN32 so the report
-        // names the call that actually failed instead of "m_hwnd != nullptr".
-        if (m_hwnd == nullptr)
+        // names the call that actually failed instead of "_hwnd != nullptr".
+        if (_hwnd == nullptr)
         {
             ThrowLastError("CreateWindowExW", __FILE__, __LINE__);
         }
 
         // ShowWindow returns the *previous* visibility, not success or
         // failure, so there is nothing here worth checking.
-        ::ShowWindow(m_hwnd, SW_SHOW);
+        ::ShowWindow(_hwnd, SW_SHOW);
     }
 
     Window::~Window()
     {
-        if (m_hwnd == nullptr)
+        if (_hwnd == nullptr)
         {
             return;
         }
@@ -95,9 +95,9 @@ namespace bw
         // WM_DESTROY, and the thunk would happily route that into an object
         // whose destructor is already running. Clearing the back-pointer
         // first makes the thunk fall through to DefWindowProcW instead.
-        ::SetWindowLongPtrW(m_hwnd, GWLP_USERDATA, 0);
-        ::DestroyWindow(m_hwnd);
-        m_hwnd = nullptr;
+        ::SetWindowLongPtrW(_hwnd, GWLP_USERDATA, 0);
+        ::DestroyWindow(_hwnd);
+        _hwnd = nullptr;
 
         // Nothing is checked here on purpose: destructors are implicitly
         // noexcept, and throwing out of one while an exception is already
@@ -120,7 +120,7 @@ namespace bw
 
             // Messages arrive before CreateWindowExW returns, so the member
             // has to be valid now rather than after the constructor assigns it.
-            self->m_hwnd = hwnd;
+            self->_hwnd = hwnd;
         }
 
         if (auto* self = reinterpret_cast<Window*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA)))
@@ -139,7 +139,7 @@ namespace bw
         {
         case WM_SIZE:
         {
-            m_minimized = (wparam == SIZE_MINIMIZED);
+            _minimized = (wparam == SIZE_MINIMIZED);
 
             const auto width  = static_cast<uint32_t>(LOWORD(lparam));
             const auto height = static_cast<uint32_t>(HIWORD(lparam));
@@ -147,11 +147,11 @@ namespace bw
             // Minimising reports a 0x0 client area. A swap chain cannot be
             // that size, so remember that we are minimised but keep the last
             // real dimensions.
-            if (!m_minimized && (width != m_width || height != m_height))
+            if (!_minimized && (width != _width || height != _height))
             {
-                m_width   = width;
-                m_height  = height;
-                m_resized = true;   // acted on by the loop, not here
+                _width   = width;
+                _height  = height;
+                _resized = true;   // acted on by the loop, not here
             }
             return 0;
         }
@@ -164,7 +164,7 @@ namespace bw
         // ------------------------------------------------------------------
         case WM_KEYDOWN:
         case WM_KEYUP:
-            m_input.OnKey(static_cast<uint8_t>(wparam), msg == WM_KEYDOWN);
+            _input.OnKey(static_cast<uint8_t>(wparam), msg == WM_KEYDOWN);
             return 0;
 
         // ------------------------------------------------------------------
@@ -174,24 +174,24 @@ namespace bw
             // GET_X_LPARAM, not LOWORD. LOWORD is unsigned, so a cursor
             // captured and dragged left of the window (or onto a monitor to
             // the left) would read -5 as 65531.
-            m_input.OnMouseMove(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            _input.OnMouseMove(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             return 0;
 
         case WM_MOUSEWHEEL:
             // The lparam here holds *screen* coordinates, not client ones --
             // unlike every other mouse message. We only want the wheel amount.
-            m_input.OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wparam));
+            _input.OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wparam));
             return 0;
 
-        case WM_LBUTTONDOWN: HandleMouseButton(MouseButton::Left,   true);  return 0;
-        case WM_LBUTTONUP:   HandleMouseButton(MouseButton::Left,   false); return 0;
-        case WM_RBUTTONDOWN: HandleMouseButton(MouseButton::Right,  true);  return 0;
-        case WM_RBUTTONUP:   HandleMouseButton(MouseButton::Right,  false); return 0;
-        case WM_MBUTTONDOWN: HandleMouseButton(MouseButton::Middle, true);  return 0;
-        case WM_MBUTTONUP:   HandleMouseButton(MouseButton::Middle, false); return 0;
+        case WM_LBUTTONDOWN: HandleMouseButton(MouseButton::Left,   true,  lparam); return 0;
+        case WM_LBUTTONUP:   HandleMouseButton(MouseButton::Left,   false, lparam); return 0;
+        case WM_RBUTTONDOWN: HandleMouseButton(MouseButton::Right,  true,  lparam); return 0;
+        case WM_RBUTTONUP:   HandleMouseButton(MouseButton::Right,  false, lparam); return 0;
+        case WM_MBUTTONDOWN: HandleMouseButton(MouseButton::Middle, true,  lparam); return 0;
+        case WM_MBUTTONUP:   HandleMouseButton(MouseButton::Middle, false, lparam); return 0;
 
         case WM_KILLFOCUS:
-            m_input.OnFocusLost();
+            _input.OnFocusLost();
             return 0;
 
         case WM_DESTROY:
@@ -200,13 +200,17 @@ namespace bw
             return 0;
 
         default:
-            return ::DefWindowProcW(m_hwnd, msg, wparam, lparam);
+            return ::DefWindowProcW(_hwnd, msg, wparam, lparam);
         }
     }
 
-    void Window::HandleMouseButton(MouseButton button, bool down) noexcept
+    void Window::HandleMouseButton(MouseButton button, bool down, LPARAM lparam) noexcept
     {
-        m_input.OnMouseButton(button, down);
+        // Button messages carry the cursor position too. Recording it here
+        // means a click with no preceding WM_MOUSEMOVE -- the click that
+        // focuses the window, say -- still reports where it happened.
+        _input.OnMouseMove(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+        _input.OnMouseButton(button, down);
 
         // Mouse capture: while any button is held, mouse messages keep coming
         // to this window even after the cursor leaves it. Without it, a
@@ -214,9 +218,9 @@ namespace bw
         // button-up lands elsewhere -- leaving the button stuck "down".
         if (down)
         {
-            ::SetCapture(m_hwnd);
+            ::SetCapture(_hwnd);
         }
-        else if (!m_input.AnyButtonDown())
+        else if (!_input.AnyButtonDown())
         {
             ::ReleaseCapture();
         }
@@ -251,13 +255,13 @@ namespace bw
     {
         // Not checked: this is called every second from the render loop, and
         // a failed title update is not worth tearing the frame down over.
-        ::SetWindowTextW(m_hwnd, title);
+        ::SetWindowTextW(_hwnd, title);
     }
 
     bool Window::ConsumeResized() noexcept
     {
-        const bool resized = m_resized;
-        m_resized = false;
+        const bool resized = _resized;
+        _resized = false;
         return resized;
     }
 }

@@ -49,16 +49,16 @@ namespace bw
         [[nodiscard]] bool ConsumeResized() noexcept;
 
         /// Keyboard and mouse state, fed from this window's messages.
-        [[nodiscard]] Input&       GetInput()       noexcept { return m_input; }
-        [[nodiscard]] const Input& GetInput() const noexcept { return m_input; }
+        [[nodiscard]] Input&       GetInput()       noexcept { return _input; }
+        [[nodiscard]] const Input& GetInput() const noexcept { return _input; }
 
         /// Replaces the text in the title bar.
         void SetTitle(const wchar_t* title) noexcept;
 
-        [[nodiscard]] HWND     Handle()      const noexcept { return m_hwnd; }
-        [[nodiscard]] uint32_t Width()       const noexcept { return m_width; }
-        [[nodiscard]] uint32_t Height()      const noexcept { return m_height; }
-        [[nodiscard]] bool     IsMinimized() const noexcept { return m_minimized; }
+        [[nodiscard]] HWND     Handle()      const noexcept { return _hwnd; }
+        [[nodiscard]] uint32_t Width()       const noexcept { return _width; }
+        [[nodiscard]] uint32_t Height()      const noexcept { return _height; }
+        [[nodiscard]] bool     IsMinimized() const noexcept { return _minimized; }
 
     private:
         static void RegisterWindowClass();
@@ -75,13 +75,13 @@ namespace bw
 
         /// Mouse buttons route through one helper: update Input, then take or
         /// release mouse capture.
-        void HandleMouseButton(MouseButton button, bool down) noexcept;
+        void HandleMouseButton(MouseButton button, bool down, LPARAM lparam) noexcept;
 
-        Input    m_input;
-        HWND     m_hwnd      = nullptr;
-        uint32_t m_width     = 0;
-        uint32_t m_height    = 0;
-        bool     m_minimized = false;
-        bool     m_resized   = false;
+        Input    _input;
+        HWND     _hwnd      = nullptr;
+        uint32_t _width     = 0;
+        uint32_t _height    = 0;
+        bool     _minimized = false;
+        bool     _resized   = false;
     };
 }

@@ -49,12 +49,12 @@ namespace bw
         [[nodiscard]] bool AnyButtonDown() const noexcept;
 
         /// Cursor position in client-area pixels, origin top-left.
-        [[nodiscard]] int32_t MouseX() const noexcept { return m_mouseX; }
-        [[nodiscard]] int32_t MouseY() const noexcept { return m_mouseY; }
+        [[nodiscard]] int32_t MouseX() const noexcept { return _mouseX; }
+        [[nodiscard]] int32_t MouseY() const noexcept { return _mouseY; }
 
         /// Cursor movement since the last update, in pixels.
-        [[nodiscard]] int32_t MouseDeltaX() const noexcept { return m_mouseDeltaX; }
-        [[nodiscard]] int32_t MouseDeltaY() const noexcept { return m_mouseDeltaY; }
+        [[nodiscard]] int32_t MouseDeltaX() const noexcept { return _mouseDeltaX; }
+        [[nodiscard]] int32_t MouseDeltaY() const noexcept { return _mouseDeltaY; }
 
         /// Wheel movement since the last update, in notches. Positive is
         /// away from the user. Fractional on high-resolution wheels.
@@ -85,19 +85,19 @@ namespace bw
             return static_cast<size_t>(button);
         }
 
-        std::array<bool, kKeyCount> m_keysDown{};
-        std::array<bool, kKeyCount> m_keysPressed{};
+        std::array<bool, kKeyCount> _keysDown{};
+        std::array<bool, kKeyCount> _keysPressed{};
 
-        std::array<bool, kButtonCount> m_buttonsDown{};
-        std::array<bool, kButtonCount> m_buttonsPressed{};
-        std::array<bool, kButtonCount> m_buttonsReleased{};
+        std::array<bool, kButtonCount> _buttonsDown{};
+        std::array<bool, kButtonCount> _buttonsPressed{};
+        std::array<bool, kButtonCount> _buttonsReleased{};
 
-        int32_t m_mouseX      = 0;
-        int32_t m_mouseY      = 0;
-        int32_t m_mouseDeltaX = 0;
-        int32_t m_mouseDeltaY = 0;
-        bool    m_hasMousePosition = false;
+        int32_t _mouseX      = 0;
+        int32_t _mouseY      = 0;
+        int32_t _mouseDeltaX = 0;
+        int32_t _mouseDeltaY = 0;
+        bool    _hasMousePosition = false;
 
-        int32_t m_wheelRaw = 0;
+        int32_t _wheelRaw = 0;
     };
 }

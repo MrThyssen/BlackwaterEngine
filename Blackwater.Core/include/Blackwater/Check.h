@@ -30,10 +30,10 @@ namespace bw
     public:
         HResultError(HRESULT hr, const char* expression, const char* file, int line);
 
-        [[nodiscard]] HRESULT code() const noexcept { return m_hr; }
+        [[nodiscard]] HRESULT code() const noexcept { return _hr; }
 
     private:
-        HRESULT m_hr;
+        HRESULT _hr;
     };
 
     /// Implementation detail of BW_CHECK.

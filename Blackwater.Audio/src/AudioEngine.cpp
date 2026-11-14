@@ -13,7 +13,7 @@ namespace bw
     };
 
     AudioEngine::AudioEngine()
-        : m_impl(std::make_unique<Impl>())
+        : _impl(std::make_unique<Impl>())
     {
     }
 

@@ -17,37 +17,37 @@ namespace bw
 
     bool Input::IsKeyDown(uint8_t virtualKey) const noexcept
     {
-        return m_keysDown[virtualKey];
+        return _keysDown[virtualKey];
     }
 
     bool Input::WasKeyPressed(uint8_t virtualKey) const noexcept
     {
-        return m_keysPressed[virtualKey];
+        return _keysPressed[virtualKey];
     }
 
     bool Input::IsButtonDown(MouseButton button) const noexcept
     {
-        return m_buttonsDown[Index(button)];
+        return _buttonsDown[Index(button)];
     }
 
     bool Input::WasButtonPressed(MouseButton button) const noexcept
     {
-        return m_buttonsPressed[Index(button)];
+        return _buttonsPressed[Index(button)];
     }
 
     bool Input::WasButtonReleased(MouseButton button) const noexcept
     {
-        return m_buttonsReleased[Index(button)];
+        return _buttonsReleased[Index(button)];
     }
 
     bool Input::AnyButtonDown() const noexcept
     {
-        return std::ranges::any_of(m_buttonsDown, [](bool down) { return down; });
+        return std::ranges::any_of(_buttonsDown, [](bool down) { return down; });
     }
 
     float Input::WheelNotches() const noexcept
     {
-        return static_cast<float>(m_wheelRaw) / kWheelUnitsPerNotch;
+        return static_cast<float>(_wheelRaw) / kWheelUnitsPerNotch;
     }
 
     // ----------------------------------------------------------------------
@@ -59,12 +59,12 @@ namespace bw
         // Holding a key makes Windows send WM_KEYDOWN repeatedly (autorepeat).
         // "Pressed" must mean the up -> down transition only, so a repeat --
         // a down while already down -- is ignored for edge purposes.
-        if (down && !m_keysDown[virtualKey])
+        if (down && !_keysDown[virtualKey])
         {
-            m_keysPressed[virtualKey] = true;
+            _keysPressed[virtualKey] = true;
         }
 
-        m_keysDown[virtualKey] = down;
+        _keysDown[virtualKey] = down;
     }
 
     void Input::OnMouseButton(MouseButton button, bool down) noexcept
@@ -74,60 +74,60 @@ namespace bw
         // Pressed and released are separate flags, not derived from IsDown.
         // A quick click can go down AND up between two simulation steps; the
         // next update then sees IsDown == false, but must still see the press.
-        if (down && !m_buttonsDown[i])
+        if (down && !_buttonsDown[i])
         {
-            m_buttonsPressed[i] = true;
+            _buttonsPressed[i] = true;
         }
-        else if (!down && m_buttonsDown[i])
+        else if (!down && _buttonsDown[i])
         {
-            m_buttonsReleased[i] = true;
+            _buttonsReleased[i] = true;
         }
 
-        m_buttonsDown[i] = down;
+        _buttonsDown[i] = down;
     }
 
     void Input::OnMouseMove(int32_t x, int32_t y) noexcept
     {
         // The very first move has no previous position to measure from;
         // reporting a delta from (0, 0) would make the camera lurch on startup.
-        if (m_hasMousePosition)
+        if (_hasMousePosition)
         {
             // Accumulate rather than overwrite: several moves can arrive
             // between two updates, and the update wants their sum.
-            m_mouseDeltaX += x - m_mouseX;
-            m_mouseDeltaY += y - m_mouseY;
+            _mouseDeltaX += x - _mouseX;
+            _mouseDeltaY += y - _mouseY;
         }
 
-        m_mouseX = x;
-        m_mouseY = y;
-        m_hasMousePosition = true;
+        _mouseX = x;
+        _mouseY = y;
+        _hasMousePosition = true;
     }
 
     void Input::OnMouseWheel(int32_t rawDelta) noexcept
     {
-        m_wheelRaw += rawDelta;
+        _wheelRaw += rawDelta;
     }
 
     void Input::OnFocusLost() noexcept
     {
-        m_keysDown.fill(false);
-        m_buttonsDown.fill(false);
+        _keysDown.fill(false);
+        _buttonsDown.fill(false);
 
         // Pending edges are dropped too: an action triggered by a press the
         // user made just before switching away would be a surprise.
-        m_keysPressed.fill(false);
-        m_buttonsPressed.fill(false);
-        m_buttonsReleased.fill(false);
+        _keysPressed.fill(false);
+        _buttonsPressed.fill(false);
+        _buttonsReleased.fill(false);
     }
 
     void Input::EndUpdate() noexcept
     {
-        m_keysPressed.fill(false);
-        m_buttonsPressed.fill(false);
-        m_buttonsReleased.fill(false);
+        _keysPressed.fill(false);
+        _buttonsPressed.fill(false);
+        _buttonsReleased.fill(false);
 
-        m_mouseDeltaX = 0;
-        m_mouseDeltaY = 0;
-        m_wheelRaw    = 0;
+        _mouseDeltaX = 0;
+        _mouseDeltaY = 0;
+        _wheelRaw    = 0;
     }
 }

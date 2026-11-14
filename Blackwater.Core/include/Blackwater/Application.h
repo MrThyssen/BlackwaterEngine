@@ -63,18 +63,18 @@ namespace bw
         /// on a 144 Hz display.
         virtual void OnRender(double /*alpha*/) {}
 
-        [[nodiscard]] Window&         GetWindow()   noexcept { return m_window; }
-        [[nodiscard]] GraphicsDevice& GetGraphics() noexcept { return m_graphics; }
+        [[nodiscard]] Window&         GetWindow()   noexcept { return _window; }
+        [[nodiscard]] GraphicsDevice& GetGraphics() noexcept { return _graphics; }
 
     private:
-        Config m_config;
+        Config _config;
 
         // Declaration order is load-bearing. Members are constructed in the
         // order they are declared here -- NOT the order of the constructor's
         // initialiser list -- and GraphicsDevice needs a window that already
         // exists. Swap these two lines and it gets a null HWND, while the
         // constructor still reads as though it were correct.
-        Window         m_window;
-        GraphicsDevice m_graphics;
+        Window         _window;
+        GraphicsDevice _graphics;
     };
 }

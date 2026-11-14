@@ -13,8 +13,8 @@ namespace
 namespace bw
 {
     GraphicsDevice::GraphicsDevice(HWND hwnd, uint32_t width, uint32_t height)
-        : m_width(width)
-        , m_height(height)
+        : _width(width)
+        , _height(height)
     {
         CreateDevice();
         CreateSwapChain(hwnd);
@@ -28,10 +28,10 @@ namespace bw
         // their own. But the immediate context can hold references to
         // resources it still has bound, and unbinding first makes the debug
         // layer's live-object report at shutdown mean what it says.
-        if (m_context)
+        if (_context)
         {
-            m_context->ClearState();
-            m_context->Flush();
+            _context->ClearState();
+            _context->Flush();
         }
 
         // No Release() calls. Five ComPtr members go out of scope here and
@@ -67,9 +67,9 @@ namespace bw
                 levels,
                 ARRAYSIZE(levels),
                 D3D11_SDK_VERSION,
-                m_device.ReleaseAndGetAddressOf(),
+                _device.ReleaseAndGetAddressOf(),
                 nullptr,                    // obtained feature level: not needed yet
-                m_context.ReleaseAndGetAddressOf());
+                _context.ReleaseAndGetAddressOf());
         };
 
         HRESULT hr = create(flags);
@@ -98,7 +98,7 @@ namespace bw
         // guessing at which DLL name a given Windows version uses, since the
         // 64-bit layer ships as d3d11_3SDKLayers.dll while the legacy
         // D3D11SDKLayers.dll name persists only for 32-bit.
-        m_debugLayerActive = (flags & D3D11_CREATE_DEVICE_DEBUG) != 0;
+        _debugLayerActive = (flags & D3D11_CREATE_DEVICE_DEBUG) != 0;
     }
 
     void GraphicsDevice::CreateSwapChain(HWND hwnd)
@@ -109,7 +109,7 @@ namespace bw
         // As() is ComPtr's QueryInterface: same object, different interface,
         // with the refcount handled for us.
         ComPtr<IDXGIDevice> dxgiDevice;
-        BW_CHECK(m_device.As(&dxgiDevice));
+        BW_CHECK(_device.As(&dxgiDevice));
 
         ComPtr<IDXGIAdapter> adapter;
         BW_CHECK(dxgiDevice->GetAdapter(adapter.GetAddressOf()));
@@ -118,8 +118,8 @@ namespace bw
         BW_CHECK(adapter->GetParent(IID_PPV_ARGS(factory.GetAddressOf())));
 
         DXGI_SWAP_CHAIN_DESC1 desc{};
-        desc.Width       = m_width;
-        desc.Height      = m_height;
+        desc.Width       = _width;
+        desc.Height      = _height;
         desc.Format      = kBackBufferFormat;
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 
@@ -134,12 +134,12 @@ namespace bw
         desc.AlphaMode        = DXGI_ALPHA_MODE_UNSPECIFIED;
 
         BW_CHECK(factory->CreateSwapChainForHwnd(
-            m_device.Get(),
+            _device.Get(),
             hwnd,
             &desc,
             nullptr,     // no fullscreen description: windowed only
             nullptr,     // no output restriction
-            m_swapChain.ReleaseAndGetAddressOf()));
+            _swapChain.ReleaseAndGetAddressOf()));
 
         // By default DXGI intercepts Alt+Enter and performs its own fullscreen
         // transition behind the engine's back. Switching modes is the engine's
@@ -151,17 +151,17 @@ namespace bw
     {
         // --- Render target over the swap chain's backbuffer ----------------
         ComPtr<ID3D11Texture2D> backBuffer;
-        BW_CHECK(m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf())));
+        BW_CHECK(_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf())));
 
-        BW_CHECK(m_device->CreateRenderTargetView(
+        BW_CHECK(_device->CreateRenderTargetView(
             backBuffer.Get(),
             nullptr,     // null desc = inherit the buffer's own format
-            m_renderTargetView.ReleaseAndGetAddressOf()));
+            _renderTargetView.ReleaseAndGetAddressOf()));
 
         // --- Depth-stencil buffer -----------------------------------------
         D3D11_TEXTURE2D_DESC depthDesc{};
-        depthDesc.Width            = m_width;
-        depthDesc.Height           = m_height;
+        depthDesc.Width            = _width;
+        depthDesc.Height           = _height;
         depthDesc.MipLevels        = 1;
         depthDesc.ArraySize        = 1;
         depthDesc.Format           = kDepthStencilFormat;
@@ -170,12 +170,12 @@ namespace bw
         depthDesc.BindFlags        = D3D11_BIND_DEPTH_STENCIL;
 
         ComPtr<ID3D11Texture2D> depthTexture;
-        BW_CHECK(m_device->CreateTexture2D(&depthDesc, nullptr, depthTexture.GetAddressOf()));
+        BW_CHECK(_device->CreateTexture2D(&depthDesc, nullptr, depthTexture.GetAddressOf()));
 
-        BW_CHECK(m_device->CreateDepthStencilView(
+        BW_CHECK(_device->CreateDepthStencilView(
             depthTexture.Get(),
             nullptr,
-            m_depthStencilView.ReleaseAndGetAddressOf()));
+            _depthStencilView.ReleaseAndGetAddressOf()));
 
         // backBuffer and depthTexture are local and die at the closing brace.
         // The textures themselves survive: the views hold their own
@@ -197,8 +197,8 @@ namespace bw
         rasterizer.FrontCounterClockwise = FALSE;             // clockwise = front
         rasterizer.DepthClipEnable       = TRUE;              // clip past near/far
 
-        BW_CHECK(m_device->CreateRasterizerState(
-            &rasterizer, m_rasterizerState.ReleaseAndGetAddressOf()));
+        BW_CHECK(_device->CreateRasterizerState(
+            &rasterizer, _rasterizerState.ReleaseAndGetAddressOf()));
 
         // --- Depth-stencil ----------------------------------------------------
         D3D11_DEPTH_STENCIL_DESC depth{};
@@ -211,8 +211,8 @@ namespace bw
         depth.DepthFunc      = D3D11_COMPARISON_LESS;
         depth.StencilEnable  = FALSE;
 
-        BW_CHECK(m_device->CreateDepthStencilState(
-            &depth, m_depthStencilState.ReleaseAndGetAddressOf()));
+        BW_CHECK(_device->CreateDepthStencilState(
+            &depth, _depthStencilState.ReleaseAndGetAddressOf()));
     }
 
     void GraphicsDevice::Resize(uint32_t width, uint32_t height)
@@ -223,7 +223,7 @@ namespace bw
             return;
         }
 
-        if (width == m_width && height == m_height)
+        if (width == _width && height == _height)
         {
             return;
         }
@@ -232,28 +232,28 @@ namespace bw
         // still references the backbuffer -- including the context's own
         // bound render target. Unbind, drop our views, then flush so the
         // driver has genuinely let go.
-        m_context->OMSetRenderTargets(0, nullptr, nullptr);
-        m_renderTargetView.Reset();
-        m_depthStencilView.Reset();
-        m_context->Flush();
+        _context->OMSetRenderTargets(0, nullptr, nullptr);
+        _renderTargetView.Reset();
+        _depthStencilView.Reset();
+        _context->Flush();
 
-        BW_CHECK(m_swapChain->ResizeBuffers(
+        BW_CHECK(_swapChain->ResizeBuffers(
             0,                     // keep the existing buffer count
             width,
             height,
             DXGI_FORMAT_UNKNOWN,   // keep the existing format
             0));
 
-        m_width  = width;
-        m_height = height;
+        _width  = width;
+        _height = height;
 
         CreateBackBufferViews();
     }
 
     void GraphicsDevice::Clear(const float colourRGBA[4])
     {
-        ID3D11RenderTargetView* const targets[] = { m_renderTargetView.Get() };
-        m_context->OMSetRenderTargets(1, targets, m_depthStencilView.Get());
+        ID3D11RenderTargetView* const targets[] = { _renderTargetView.Get() };
+        _context->OMSetRenderTargets(1, targets, _depthStencilView.Get());
 
         // The viewport maps normalised device coordinates onto pixels. It is
         // reset whenever the backbuffer is recreated, so it is set per frame
@@ -261,23 +261,23 @@ namespace bw
         D3D11_VIEWPORT viewport{};
         viewport.TopLeftX = 0.0f;
         viewport.TopLeftY = 0.0f;
-        viewport.Width    = static_cast<float>(m_width);
-        viewport.Height   = static_cast<float>(m_height);
+        viewport.Width    = static_cast<float>(_width);
+        viewport.Height   = static_cast<float>(_height);
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
-        m_context->RSSetViewports(1, &viewport);
+        _context->RSSetViewports(1, &viewport);
 
         // Bound every frame alongside the viewport. Binding is cheap -- the
         // expensive validation happened once, at creation.
-        m_context->RSSetState(m_rasterizerState.Get());
-        m_context->OMSetDepthStencilState(m_depthStencilState.Get(), 0);
+        _context->RSSetState(_rasterizerState.Get());
+        _context->OMSetDepthStencilState(_depthStencilState.Get(), 0);
 
-        m_context->ClearRenderTargetView(m_renderTargetView.Get(), colourRGBA);
+        _context->ClearRenderTargetView(_renderTargetView.Get(), colourRGBA);
 
         // Depth clears to 1.0 -- the far plane -- so that any geometry drawn
         // later is nearer than "nothing" and passes the depth test.
-        m_context->ClearDepthStencilView(
-            m_depthStencilView.Get(),
+        _context->ClearDepthStencilView(
+            _depthStencilView.Get(),
             D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
             1.0f,
             0);
@@ -285,7 +285,7 @@ namespace bw
 
     void GraphicsDevice::Present(bool vsync)
     {
-        const HRESULT hr = m_swapChain->Present(vsync ? 1u : 0u, 0);
+        const HRESULT hr = _swapChain->Present(vsync ? 1u : 0u, 0);
 
         // A removed or reset device means the GPU went away -- driver update,
         // TDR, hardware change. Recovering means rebuilding everything, which
@@ -293,7 +293,7 @@ namespace bw
         // silently swallowed.
         if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
         {
-            BW_CHECK(m_device->GetDeviceRemovedReason());
+            BW_CHECK(_device->GetDeviceRemovedReason());
         }
 
         BW_CHECK(hr);

@@ -1,4 +1,4 @@
-﻿#include <Blackwater/Application.h>
+#include <Blackwater/Application.h>
 #include <Blackwater/Camera.h>
 #include <Blackwater/Check.h>
 #include <Blackwater/ConstantBuffer.h>
@@ -87,16 +87,7 @@ namespace
         6, 4, 5,   7, 4, 6,     // bottom
     };
 
-    constexpr double kRotationsPerSecond = 0.15;
-    constexpr double kRadiansPerSecond   = kRotationsPerSecond * 2.0 * 3.14159265358979323846;
-
-    // Camera controls. Middle-drag and Left/Right both produce a yaw delta;
-    // wheel and Up/Down both produce zoom "notches". One path per axis means
-    // the two bindings cannot disagree about direction or feel.
-    constexpr float kRotateRadiansPerPixel   = 0.008f;
-    constexpr float kRotateRadiansPerSecond  = 2.0f;
-    constexpr float kZoomFactorPerNotch      = 0.88f;   // < 1: each notch moves 12% closer
-    constexpr float kZoomNotchesPerSecond    = 6.0f;    // Up/Down held
+    constexpr float kWalkSpeed = 4.0f;   // world units per second
 
     // ----------------------------------------------------------------------
     // Ground grid
@@ -159,8 +150,8 @@ namespace
     constexpr float kMarkerScale    = 0.25f;
 
     //
-    // M2: an orbit camera over a ground grid. The cube spins on the ground;
-    // right-click places a marker where the cursor's ray meets the ground.
+    // M3: a fixed isometric camera over a ground grid. Right-click the ground and
+    // the cube walks there; the marker shows where it is going.
     //
     class SandboxApp final : public bw::Application
     {
@@ -171,94 +162,85 @@ namespace
             // so GetGraphics() is already valid here. That is what lets these
             // be plain members rather than unique_ptrs, despite being
             // non-movable.
-            , m_shader(GetGraphics().Device(), L"shaders\\Basic.hlsl",
+            , _shader(GetGraphics().Device(), L"shaders\\Basic.hlsl",
                        "VSMain", "PSMain", kInputLayout)
-            , m_cube(GetGraphics().Device(),
+            , _cube(GetGraphics().Device(),
                      kVertices, std::size(kVertices), sizeof(Vertex),
                      kIndices)
-            , m_grid(MakeGrid(GetGraphics().Device()))
-            , m_transforms(GetGraphics().Device())
+            , _grid(MakeGrid(GetGraphics().Device()))
+            , _transforms(GetGraphics().Device())
         {
         }
 
     protected:
         void OnUpdate(double fixedDeltaSeconds) override
         {
-            UpdateCamera(static_cast<float>(fixedDeltaSeconds));
-            UpdateMarker();
+            // Click first, then walk: a new click redirects the cube in the
+            // same step it arrives.
+            SetTargetOnRightClick();
+            Walk(static_cast<float>(fixedDeltaSeconds));
 
-            // Keep the previous angle so OnRender can interpolate between the
-            // two. Without this there is nothing to interpolate *from*, and
-            // alpha would be useless.
-            m_previousAngle = m_currentAngle;
-            m_currentAngle += static_cast<float>(kRadiansPerSecond * fixedDeltaSeconds);
+            ++_updates;
+            _secondAccumulator += fixedDeltaSeconds;
 
-            ++m_updates;
-            m_secondAccumulator += fixedDeltaSeconds;
-
-            if (m_secondAccumulator >= 1.0)
+            if (_secondAccumulator >= 1.0)
             {
                 wchar_t title[160];
                 ::swprintf_s(title,
-                             L"Blackwater - M2   |   %u fps   |   %u ups   |   debug layer: %s",
-                             m_frames, m_updates,
+                             L"Blackwater - M3   |   %u fps   |   %u ups   |   debug layer: %s",
+                             _frames, _updates,
                              GetGraphics().IsDebugLayerActive() ? L"ON" : L"off");
 
                 GetWindow().SetTitle(title);
 
-                m_secondAccumulator -= 1.0;
-                m_frames  = 0;
-                m_updates = 0;
+                _secondAccumulator -= 1.0;
+                _frames  = 0;
+                _updates = 0;
             }
         }
 
         void OnRender(double alpha) override
         {
-            ++m_frames;
+            ++_frames;
 
-            // The payoff for the accumulator. The simulation advances 60 times
-            // a second; this draws the cube *between* those states, so motion
-            // stays smooth at any refresh rate. Replace `angle` with
-            // m_currentAngle to see the judder alpha exists to remove.
-            const float angle =
-                m_previousAngle + (m_currentAngle - m_previousAngle) * static_cast<float>(alpha);
+            // Draw the cube *between* its last two simulation positions, so
+            // walking stays smooth at any refresh rate. Drawing _position
+            // directly would judder. This interpolated value is for drawing
+            // only -- the simulation never reads it.
+            const auto t = static_cast<float>(alpha);
+            const float drawX = _previousPosition.x + (_position.x - _previousPosition.x) * t;
+            const float drawZ = _previousPosition.z + (_position.z - _previousPosition.z) * t;
 
             auto& graphics = GetGraphics();
 
             const float aspect =
                 static_cast<float>(graphics.Width()) / static_cast<float>(graphics.Height());
 
-            // The camera interpolates its own pose by alpha, the same way the
-            // cube's angle is interpolated above. View and projection are the
-            // same for every object this frame, so combine them once.
-            const XMMATRIX viewProjection =
-                m_camera.View(static_cast<float>(alpha)) * m_camera.Projection(aspect);
+            // The camera never moves, so it needs no alpha. View and projection
+            // are the same for every object this frame, so combine them once.
+            const XMMATRIX viewProjection = _camera.View() * _camera.Projection(aspect);
 
             // Shared by every draw below: one shader, one constant buffer
             // slot. Only the buffer's *contents* change per draw.
             auto* context = graphics.Context();
-            m_shader.Bind(context);
-            m_transforms.BindToVertexStage(context, 0);
+            _shader.Bind(context);
+            _transforms.BindToVertexStage(context, 0);
 
             // Ground: the grid's vertices are already in world space.
-            DrawMesh(m_grid, XMMatrixIdentity(), viewProjection);
+            DrawMesh(_grid, XMMatrixIdentity(), viewProjection);
 
-            // Cube: spin around Y, then lift by its half-height so its bottom
-            // face rests on the ground instead of being sunk halfway in.
-            DrawMesh(m_cube,
-                     XMMatrixRotationY(angle) * XMMatrixTranslation(0.0f, kCubeHalfSize, 0.0f),
-                     viewProjection);
+            // Cube: lifted by its half-height so it rests on the ground.
+            DrawMesh(_cube, XMMatrixTranslation(drawX, kCubeHalfSize, drawZ), viewProjection);
 
-            // Marker: the same cube mesh, scaled down and moved to the last
-            // right-click. One set of vertices, two objects -- "where and how
-            // big" lives in the world matrix, not in the geometry.
-            if (m_hasMarker)
+            // Marker: the same cube mesh, scaled down, at the destination.
+            // It doesn't move continuously -- it jumps -- so it needs no alpha.
+            if (_walking)
             {
-                DrawMesh(m_cube,
+                DrawMesh(_cube,
                          XMMatrixScaling(kMarkerScale, kMarkerScale, kMarkerScale) *
-                         XMMatrixTranslation(m_marker.x,
-                                             m_marker.y + kCubeHalfSize * kMarkerScale,
-                                             m_marker.z),
+                         XMMatrixTranslation(_target.x,
+                                             _target.y + kCubeHalfSize * kMarkerScale,
+                                             _target.z),
                          viewProjection);
             }
         }
@@ -287,16 +269,15 @@ namespace
                             XMMatrixTranspose(world * viewProjection));
 
             auto* context = GetGraphics().Context();
-            m_transforms.Update(context, transforms);
+            _transforms.Update(context, transforms);
             mesh.Draw(context);
         }
 
         //
-        // Right-click: cast a ray from the cursor and drop the marker where it
-        // meets the ground. This is exactly the query right-click-to-move will
-        // make at M5 -- only the response changes.
+        // Right-click: cast a ray from the cursor; where it meets the ground
+        // becomes the cube's new destination.
         //
-        void UpdateMarker()
+        void SetTargetOnRightClick()
         {
             const bw::Input& input = GetWindow().GetInput();
 
@@ -311,7 +292,7 @@ namespace
 
             // Mouse coordinates are client-area pixels and the viewport covers
             // the whole client area, so the two line up directly.
-            const bw::Ray ray = m_camera.ScreenToWorldRay(
+            const bw::Ray ray = _camera.ScreenToWorldRay(
                 static_cast<float>(input.MouseX()),
                 static_cast<float>(input.MouseY()),
                 static_cast<float>(graphics.Width()),
@@ -320,62 +301,64 @@ namespace
             XMFLOAT3 hit{};
             if (bw::IntersectGroundPlane(ray, kGridY, hit))
             {
-                m_marker    = hit;
-                m_hasMarker = true;
+                _target  = hit;
+                _walking = true;
             }
-            // No hit -- the ray points at the sky. Leave the marker where it is.
+            // No hit -- the ray points at the sky. Keep doing whatever we were.
         }
 
-        void UpdateCamera(float deltaSeconds)
+        //
+        // One simulation step of walking: a straight line at constant speed.
+        //
+        void Walk(float deltaSeconds)
         {
-            const bw::Input& input = GetWindow().GetInput();
+            // Every step, even when standing still. Skipping it while idle
+            // would leave a stale previous position, and the first frame after
+            // stopping would interpolate from it -- a visible twitch backwards.
+            _previousPosition = _position;
 
-            // Previous pose first, then change the current one -- the same
-            // order as the cube's angle.
-            m_camera.BeginStep();
-
-            // --- Rotate: middle-drag and Left/Right, one yaw delta -----------
-            float yawDelta = 0.0f;
-
-            if (input.IsButtonDown(bw::MouseButton::Middle))
+            if (!_walking)
             {
-                yawDelta += static_cast<float>(input.MouseDeltaX()) * kRotateRadiansPerPixel;
+                return;
             }
-            if (input.IsKeyDown(VK_RIGHT)) { yawDelta += kRotateRadiansPerSecond * deltaSeconds; }
-            if (input.IsKeyDown(VK_LEFT))  { yawDelta -= kRotateRadiansPerSecond * deltaSeconds; }
 
-            m_camera.Rotate(yawDelta);
+            const float dx       = _target.x - _position.x;
+            const float dz       = _target.z - _position.z;
+            const float distance = std::sqrt(dx * dx + dz * dz);
+            const float step     = kWalkSpeed * deltaSeconds;
 
-            // --- Zoom: wheel and Up/Down, one notch count --------------------
-            float zoomNotches = input.WheelNotches();
-
-            if (input.IsKeyDown(VK_UP))   { zoomNotches += kZoomNotchesPerSecond * deltaSeconds; }
-            if (input.IsKeyDown(VK_DOWN)) { zoomNotches -= kZoomNotchesPerSecond * deltaSeconds; }
-
-            // Positive notches (wheel away from you, or Up) zoom in. pow turns
-            // a notch count into a ratio, so two notches are exactly one notch
-            // applied twice, whatever the current distance.
-            if (zoomNotches != 0.0f)
+            // Closer than one step: snap onto the target and stop. Without the
+            // snap the cube would overshoot, turn back, and jitter around the
+            // target forever.
+            if (distance <= step)
             {
-                m_camera.Zoom(std::pow(kZoomFactorPerNotch, zoomNotches));
+                _position = _target;
+                _walking  = false;
+                return;
             }
+
+            // dx/distance, dz/distance is the unit direction; times step is
+            // how far one simulation step moves.
+            _position.x += dx / distance * step;
+            _position.z += dz / distance * step;
         }
 
-        bw::Camera                     m_camera;
-        bw::Shader                     m_shader;
-        bw::Mesh                       m_cube;
-        bw::Mesh                       m_grid;
-        bw::ConstantBuffer<Transforms> m_transforms;
+        bw::Camera                     _camera;   // fixed isometric view
+        bw::Shader                     _shader;
+        bw::Mesh                       _cube;
+        bw::Mesh                       _grid;
+        bw::ConstantBuffer<Transforms> _transforms;
 
-        XMFLOAT3 m_marker{};
-        bool     m_hasMarker = false;
+        // Simulation state, on the ground (y = 0). OnRender draws between
+        // _previousPosition and _position; nothing else reads them that way.
+        XMFLOAT3 _position{};
+        XMFLOAT3 _previousPosition{};
+        XMFLOAT3 _target{};
+        bool     _walking = false;
 
-        float m_previousAngle = 0.0f;
-        float m_currentAngle  = 0.0f;
-
-        double   m_secondAccumulator = 0.0;
-        uint32_t m_frames            = 0;
-        uint32_t m_updates           = 0;
+        double   _secondAccumulator = 0.0;
+        uint32_t _frames            = 0;
+        uint32_t _updates           = 0;
     };
 }
 
@@ -386,7 +369,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     try
     {
         SandboxApp app(bw::Application::Config{
-            .title  = L"Blackwater - M2",
+            .title  = L"Blackwater - M3",
             .width  = 1280,
             .height = 720,
         });

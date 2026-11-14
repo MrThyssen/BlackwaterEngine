@@ -78,7 +78,7 @@ namespace bw
     // takes it once, at construction.
     HResultError::HResultError(HRESULT hr, const char* expression, const char* file, int line)
         : std::runtime_error(BuildMessage(hr, expression, file, line))
-        , m_hr(hr)
+        , _hr(hr)
     {
     }
 

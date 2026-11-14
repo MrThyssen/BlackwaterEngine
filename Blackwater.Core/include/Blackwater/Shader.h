@@ -54,8 +54,8 @@ namespace bw
                                              const char* entryPoint,
                                              const char* targetProfile);
 
-        ComPtr<ID3D11VertexShader> m_vertexShader;
-        ComPtr<ID3D11PixelShader>  m_pixelShader;
-        ComPtr<ID3D11InputLayout>  m_inputLayout;
+        ComPtr<ID3D11VertexShader> _vertexShader;
+        ComPtr<ID3D11PixelShader>  _pixelShader;
+        ComPtr<ID3D11InputLayout>  _inputLayout;
     };
 }

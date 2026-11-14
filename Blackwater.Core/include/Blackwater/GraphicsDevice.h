@@ -51,12 +51,12 @@ namespace bw
         /// False means the layer was requested but unavailable (Windows'
         /// "Graphics Tools" feature missing or incomplete) and the device was
         /// created without it. Always false in Release builds.
-        [[nodiscard]] bool IsDebugLayerActive() const noexcept { return m_debugLayerActive; }
+        [[nodiscard]] bool IsDebugLayerActive() const noexcept { return _debugLayerActive; }
 
-        [[nodiscard]] ID3D11Device*        Device()  const noexcept { return m_device.Get(); }
-        [[nodiscard]] ID3D11DeviceContext* Context() const noexcept { return m_context.Get(); }
-        [[nodiscard]] uint32_t             Width()   const noexcept { return m_width; }
-        [[nodiscard]] uint32_t             Height()  const noexcept { return m_height; }
+        [[nodiscard]] ID3D11Device*        Device()  const noexcept { return _device.Get(); }
+        [[nodiscard]] ID3D11DeviceContext* Context() const noexcept { return _context.Get(); }
+        [[nodiscard]] uint32_t             Width()   const noexcept { return _width; }
+        [[nodiscard]] uint32_t             Height()  const noexcept { return _height; }
 
     private:
         void CreateDevice();
@@ -64,19 +64,19 @@ namespace bw
         void CreateBackBufferViews();
         void CreateRenderStates();
 
-        ComPtr<ID3D11Device>           m_device;
-        ComPtr<ID3D11DeviceContext>    m_context;
-        ComPtr<IDXGISwapChain1>        m_swapChain;
-        ComPtr<ID3D11RenderTargetView> m_renderTargetView;
-        ComPtr<ID3D11DepthStencilView> m_depthStencilView;
+        ComPtr<ID3D11Device>           _device;
+        ComPtr<ID3D11DeviceContext>    _context;
+        ComPtr<IDXGISwapChain1>        _swapChain;
+        ComPtr<ID3D11RenderTargetView> _renderTargetView;
+        ComPtr<ID3D11DepthStencilView> _depthStencilView;
 
         // Pipeline state objects. Immutable once created: described once,
         // validated once by the device, then only ever bound.
-        ComPtr<ID3D11RasterizerState>   m_rasterizerState;
-        ComPtr<ID3D11DepthStencilState> m_depthStencilState;
+        ComPtr<ID3D11RasterizerState>   _rasterizerState;
+        ComPtr<ID3D11DepthStencilState> _depthStencilState;
 
-        uint32_t m_width  = 0;
-        uint32_t m_height = 0;
-        bool     m_debugLayerActive = false;
+        uint32_t _width  = 0;
+        uint32_t _height = 0;
+        bool     _debugLayerActive = false;
     };
 }

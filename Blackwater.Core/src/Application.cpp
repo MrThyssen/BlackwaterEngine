@@ -18,12 +18,12 @@ namespace
 namespace bw
 {
     Application::Application(const Config& config)
-        : m_config(config)
-        , m_window(config.title, config.width, config.height)
-        , m_graphics(m_window.Handle(), m_window.Width(), m_window.Height())
+        : _config(config)
+        , _window(config.title, config.width, config.height)
+        , _graphics(_window.Handle(), _window.Width(), _window.Height())
     {
         // Note this reads from `config`, the parameter, rather than from
-        // m_config. Both work here, but depending on m_config would mean
+        // _config. Both work here, but depending on _config would mean
         // depending on it having been initialised first -- a fragile thing to
         // rely on when someone later reorders the members.
     }
@@ -37,12 +37,12 @@ namespace bw
         // by hand, without the boilerplate.
         using Clock = std::chrono::steady_clock;
 
-        const double fixedDelta = 1.0 / m_config.updatesPerSecond;
+        const double fixedDelta = 1.0 / _config.updatesPerSecond;
 
         double accumulator = 0.0;
         auto   previous    = Clock::now();
 
-        while (m_window.PumpMessages())
+        while (_window.PumpMessages())
         {
             const auto current = Clock::now();
 
@@ -76,22 +76,22 @@ namespace bw
                 // per frame. A frame that runs zero updates keeps them pending
                 // for the next one, so no click is lost; a frame that runs
                 // several hands the click to the first update only.
-                m_window.GetInput().EndUpdate();
+                _window.GetInput().EndUpdate();
 
                 accumulator -= fixedDelta;
             }
 
             // Resize between simulation and rendering, so the frame we are
             // about to draw already targets the new backbuffer size.
-            if (m_window.ConsumeResized())
+            if (_window.ConsumeResized())
             {
-                m_graphics.Resize(m_window.Width(), m_window.Height());
+                _graphics.Resize(_window.Width(), _window.Height());
             }
 
             // A minimised window has no drawable surface. Keep simulating,
             // but skip presenting and yield rather than spinning: with vsync
             // gone there is nothing left to pace the loop.
-            if (m_window.IsMinimized())
+            if (_window.IsMinimized())
             {
                 ::Sleep(1);   // PORT(M5): std::this_thread::sleep_for -- Win32-only today
                 continue;
@@ -107,13 +107,13 @@ namespace bw
             // -------------------------------------------------------------
             const double alpha = accumulator / fixedDelta;
 
-            m_graphics.Clear(m_config.clearColour);
+            _graphics.Clear(_config.clearColour);
             OnRender(alpha);
-            m_graphics.Present(m_config.vsync);
+            _graphics.Present(_config.vsync);
         }
 
         // PumpMessages returned false, meaning WM_QUIT. Everything unwinds
-        // from here: m_graphics then m_window, in reverse declaration order,
+        // from here: _graphics then _window, in reverse declaration order,
         // each releasing what it owns.
         return 0;
     }

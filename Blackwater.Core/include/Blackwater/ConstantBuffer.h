@@ -52,7 +52,7 @@ namespace bw
             desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
             BW_CHECK(device->CreateBuffer(&desc, nullptr,
-                                          m_buffer.ReleaseAndGetAddressOf()));
+                                          _buffer.ReleaseAndGetAddressOf()));
         }
 
         ConstantBuffer(const ConstantBuffer&)            = delete;
@@ -71,29 +71,29 @@ namespace bw
         {
             D3D11_MAPPED_SUBRESOURCE mapped{};
 
-            BW_CHECK(context->Map(m_buffer.Get(), 0,
+            BW_CHECK(context->Map(_buffer.Get(), 0,
                                   D3D11_MAP_WRITE_DISCARD, 0, &mapped));
 
             std::memcpy(mapped.pData, &value, sizeof(T));
 
-            context->Unmap(m_buffer.Get(), 0);
+            context->Unmap(_buffer.Get(), 0);
         }
 
         /// Binds to a vertex shader constant slot (register b<slot>).
         void BindToVertexStage(ID3D11DeviceContext* context, UINT slot = 0) const
         {
-            ID3D11Buffer* const buffers[] = { m_buffer.Get() };
+            ID3D11Buffer* const buffers[] = { _buffer.Get() };
             context->VSSetConstantBuffers(slot, 1, buffers);
         }
 
         /// Binds to a pixel shader constant slot (register b<slot>).
         void BindToPixelStage(ID3D11DeviceContext* context, UINT slot = 0) const
         {
-            ID3D11Buffer* const buffers[] = { m_buffer.Get() };
+            ID3D11Buffer* const buffers[] = { _buffer.Get() };
             context->PSSetConstantBuffers(slot, 1, buffers);
         }
 
     private:
-        ComPtr<ID3D11Buffer> m_buffer;
+        ComPtr<ID3D11Buffer> _buffer;
     };
 }

@@ -98,13 +98,13 @@ namespace bw
             vertexCode->GetBufferPointer(),
             vertexCode->GetBufferSize(),
             nullptr,                            // no class linkage
-            m_vertexShader.ReleaseAndGetAddressOf()));
+            _vertexShader.ReleaseAndGetAddressOf()));
 
         BW_CHECK(device->CreatePixelShader(
             pixelCode->GetBufferPointer(),
             pixelCode->GetBufferSize(),
             nullptr,
-            m_pixelShader.ReleaseAndGetAddressOf()));
+            _pixelShader.ReleaseAndGetAddressOf()));
 
         // The vertex shader bytecode is required here, not just the element
         // descriptions: D3D compares the layout against the shader's declared
@@ -116,15 +116,15 @@ namespace bw
             static_cast<UINT>(inputLayout.size()),
             vertexCode->GetBufferPointer(),
             vertexCode->GetBufferSize(),
-            m_inputLayout.ReleaseAndGetAddressOf()));
+            _inputLayout.ReleaseAndGetAddressOf()));
     }
 
     void Shader::Bind(ID3D11DeviceContext* context) const
     {
         // D3D11 is a state machine: these stay bound until something else
         // replaces them, and every subsequent draw uses them implicitly.
-        context->IASetInputLayout(m_inputLayout.Get());
-        context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-        context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+        context->IASetInputLayout(_inputLayout.Get());
+        context->VSSetShader(_vertexShader.Get(), nullptr, 0);
+        context->PSSetShader(_pixelShader.Get(), nullptr, 0);
     }
 }
