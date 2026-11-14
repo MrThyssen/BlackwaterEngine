@@ -29,6 +29,7 @@ namespace
     struct Vertex
     {
         XMFLOAT3 position;
+        XMFLOAT3 normal;
         XMFLOAT4 colour;
     };
 
@@ -39,55 +40,96 @@ namespace
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0,
           offsetof(Vertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0,
+          offsetof(Vertex, normal),   D3D11_INPUT_PER_VERTEX_DATA, 0 },
+
         { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
           offsetof(Vertex, colour),   D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
     // ----------------------------------------------------------------------
-    // Constant buffer payload
-    //
-    // 64 bytes -- one 4x4 matrix -- so it already satisfies the multiple-of-16
-    // rule that ConstantBuffer<T> asserts on.
+    // Constant buffer payloads. Both are multiples of 16 bytes, which
+    // ConstantBuffer<T> asserts on.
     // ----------------------------------------------------------------------
+
+    // 128 bytes. World alone is needed to turn normals into world space;
+    // the combined matrix still does the positions.
     struct Transforms
     {
         XMFLOAT4X4 worldViewProjection;
+        XMFLOAT4X4 world;
     };
 
-    // ----------------------------------------------------------------------
-    // A unit cube: eight corners, each a different colour, so the rasterizer's
-    // interpolation is obvious.
+    // 16 bytes: HLSL packs a float3 and a following float into one 16-byte
+    // row, so this struct matches the cbuffer with no padding.
+    struct Lighting
+    {
+        XMFLOAT3 directionToLight;   // unit vector, pointing at the sun
+        float    ambient;
+    };
+
+    // The camera looks from the -X, +Y, -Z side, so the top, -X and -Z faces
+    // are the visible ones. A sun high up and towards -X lights them roughly
+    // 100% / 70% / 50% -- three clearly different shades.
+    constexpr XMFLOAT3 kDirectionToLight = { -0.6f, 1.0f, -0.35f };   // normalised at upload
+    constexpr float    kAmbient          = 0.2f;
+
+    const XMFLOAT4 kCubeColour = { 0.85f, 0.50f, 0.32f, 1.0f };
+
     //
-    //   0..3 = top    (y = +1)
-    //   4..7 = bottom (y = -1)
-    // ----------------------------------------------------------------------
-    const Vertex kVertices[] =
+    // A cube spanning -1..+1 with 24 vertices: 4 per face.
+    //
+    // A corner is shared by three faces, and each of those faces needs its own
+    // normal there. A vertex holds one normal, so each corner is stored three
+    // times.
+    //
+    bw::Mesh MakeCube(ID3D11Device* device)
     {
-        { { -1.0f,  1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-        { {  1.0f,  1.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-        { {  1.0f,  1.0f,  1.0f }, { 0.0f, 1.0f, 1.0f, 1.0f } },
-        { { -1.0f,  1.0f,  1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-        { { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f, 1.0f } },
-        { {  1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f, 1.0f } },
-        { {  1.0f, -1.0f,  1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
-        { { -1.0f, -1.0f,  1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } },
-    };
+        std::vector<Vertex>   vertices;
+        std::vector<uint32_t> indices;
 
-    // Winding order matters. D3D11's default rasterizer culls back faces and
-    // treats CLOCKWISE (in screen space) as front-facing. Reverse a triangle
-    // here and that face simply vanishes -- a "hole" in the cube that looks
-    // like a depth bug but is not.
-    const uint32_t kIndices[] =
-    {
-        3, 1, 0,   2, 1, 3,     // top
-        0, 5, 4,   1, 5, 0,     // front
-        3, 4, 7,   0, 4, 3,     // left
-        1, 6, 5,   2, 6, 1,     // right
-        2, 7, 6,   3, 7, 2,     // back
-        6, 4, 5,   7, 4, 6,     // bottom
-    };
+        // One face: its outward normal n, plus two edge directions u and v
+        // chosen so that cross(u, v) == n. Corners a, b, c, d walk the
+        // square in an order that makes cross(b - a, c - a) point along n --
+        // which is clockwise when viewed from outside, D3D11's front face.
+        // Get it backwards and back-face culling makes the face vanish.
+        const auto addFace = [&](XMFLOAT3 n, XMFLOAT3 u, XMFLOAT3 v)
+        {
+            const auto corner = [&](float su, float sv)
+            {
+                return XMFLOAT3{ n.x + su * u.x + sv * v.x,
+                                 n.y + su * u.y + sv * v.y,
+                                 n.z + su * u.z + sv * v.z };
+            };
 
-    constexpr float kWalkSpeed = 4.0f;   // world units per second
+            const auto first = static_cast<uint32_t>(vertices.size());
+
+            vertices.push_back({ corner(-1.0f, -1.0f), n, kCubeColour });   // a
+            vertices.push_back({ corner( 1.0f, -1.0f), n, kCubeColour });   // b
+            vertices.push_back({ corner( 1.0f,  1.0f), n, kCubeColour });   // c
+            vertices.push_back({ corner(-1.0f,  1.0f), n, kCubeColour });   // d
+
+            // Two triangles: a-b-c and a-c-d.
+            indices.insert(indices.end(), { first, first + 1, first + 2,
+                                            first, first + 2, first + 3 });
+        };
+
+        constexpr XMFLOAT3 x{ 1, 0, 0 }, y{ 0, 1, 0 }, z{ 0, 0, 1 };
+        constexpr XMFLOAT3 nx{ -1, 0, 0 }, ny{ 0, -1, 0 }, nz{ 0, 0, -1 };
+
+        addFace(y,  z, x);   // top     cross(z, x) =  y
+        addFace(ny, x, z);   // bottom  cross(x, z) = -y
+        addFace(x,  y, z);   // right   cross(y, z) =  x
+        addFace(nx, z, y);   // left    cross(z, y) = -x
+        addFace(z,  x, y);   // back    cross(x, y) =  z
+        addFace(nz, y, x);   // front   cross(y, x) = -z
+
+        return bw::Mesh(device,
+                        vertices.data(), vertices.size(), sizeof(Vertex),
+                        indices);
+    }
+
+    constexpr float kWalkSpeed = 12.0f;   // world units per second
 
     // ----------------------------------------------------------------------
     // Ground grid
@@ -113,12 +155,16 @@ namespace
         std::vector<Vertex>   vertices;
         std::vector<uint32_t> indices;
 
+        // Lines have no surface, so the normal is a placeholder: the grid is
+        // drawn with the unlit pixel shader, which ignores it.
+        constexpr XMFLOAT3 up{ 0.0f, 1.0f, 0.0f };
+
         const auto addLine = [&](XMFLOAT3 from, XMFLOAT3 to, XMFLOAT4 colour)
         {
             indices.push_back(static_cast<uint32_t>(vertices.size()));
-            vertices.push_back({ from, colour });
+            vertices.push_back({ from, up, colour });
             indices.push_back(static_cast<uint32_t>(vertices.size()));
-            vertices.push_back({ to, colour });
+            vertices.push_back({ to, up, colour });
         };
 
         const auto extent = static_cast<float>(kGridHalfExtent);
@@ -162,14 +208,26 @@ namespace
             // so GetGraphics() is already valid here. That is what lets these
             // be plain members rather than unique_ptrs, despite being
             // non-movable.
-            , _shader(GetGraphics().Device(), L"shaders\\Basic.hlsl",
-                       "VSMain", "PSMain", kInputLayout)
-            , _cube(GetGraphics().Device(),
-                     kVertices, std::size(kVertices), sizeof(Vertex),
-                     kIndices)
+            //
+            // Two shaders from one file: same vertex shader, different pixel
+            // shader. LearnOpenGL does the same for its lamp cube.
+            , _litShader(GetGraphics().Device(), L"shaders\\Basic.hlsl",
+                          "VSMain", "PSLit", kInputLayout)
+            , _unlitShader(GetGraphics().Device(), L"shaders\\Basic.hlsl",
+                            "VSMain", "PSUnlit", kInputLayout)
+            , _cube(MakeCube(GetGraphics().Device()))
             , _grid(MakeGrid(GetGraphics().Device()))
             , _transforms(GetGraphics().Device())
+            , _lighting(GetGraphics().Device())
         {
+            // The light never changes, so upload it once. Normalised here
+            // rather than in the shader: once on the CPU beats once per pixel.
+            Lighting lighting{};
+            XMStoreFloat3(&lighting.directionToLight,
+                          XMVector3Normalize(XMLoadFloat3(&kDirectionToLight)));
+            lighting.ambient = kAmbient;
+
+            _lighting.Update(GetGraphics().Context(), lighting);
         }
 
     protected:
@@ -220,14 +278,18 @@ namespace
             // are the same for every object this frame, so combine them once.
             const XMMATRIX viewProjection = _camera.View() * _camera.Projection(aspect);
 
-            // Shared by every draw below: one shader, one constant buffer
-            // slot. Only the buffer's *contents* change per draw.
+            // Shared by every draw below. Only the transforms buffer's
+            // *contents* change per draw.
             auto* context = graphics.Context();
-            _shader.Bind(context);
             _transforms.BindToVertexStage(context, 0);
+            _lighting.BindToPixelStage(context, 1);
 
-            // Ground: the grid's vertices are already in world space.
+            // Ground: unlit. Its vertices are already in world space.
+            _unlitShader.Bind(context);
             DrawMesh(_grid, XMMatrixIdentity(), viewProjection);
+
+            // Everything else is lit.
+            _litShader.Bind(context);
 
             // Cube: lifted by its half-height so it rests on the ground.
             DrawMesh(_cube, XMMatrixTranslation(drawX, kCubeHalfSize, drawZ), viewProjection);
@@ -267,6 +329,7 @@ namespace
             Transforms transforms{};
             XMStoreFloat4x4(&transforms.worldViewProjection,
                             XMMatrixTranspose(world * viewProjection));
+            XMStoreFloat4x4(&transforms.world, XMMatrixTranspose(world));
 
             auto* context = GetGraphics().Context();
             _transforms.Update(context, transforms);
@@ -344,10 +407,12 @@ namespace
         }
 
         bw::Camera                     _camera;   // fixed isometric view
-        bw::Shader                     _shader;
+        bw::Shader                     _litShader;
+        bw::Shader                     _unlitShader;
         bw::Mesh                       _cube;
         bw::Mesh                       _grid;
         bw::ConstantBuffer<Transforms> _transforms;
+        bw::ConstantBuffer<Lighting>   _lighting;
 
         // Simulation state, on the ground (y = 0). OnRender draws between
         // _previousPosition and _position; nothing else reads them that way.
