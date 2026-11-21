@@ -60,6 +60,14 @@ namespace bw
         /// away from the user. Fractional on high-resolution wheels.
         [[nodiscard]] float WheelNotches() const noexcept;
 
+        /// True while the window has keyboard focus.
+        [[nodiscard]] bool HasFocus() const noexcept { return _hasFocus; }
+
+        /// True while the cursor is over the window's client area. MouseX/Y
+        /// keep their last value after it leaves, so check this before
+        /// treating the position as "where the cursor is now".
+        [[nodiscard]] bool IsMouseInside() const noexcept { return _mouseInside; }
+
         // ------------------------------------------------------------------
         // Feeders -- called by Window as messages arrive.
         // ------------------------------------------------------------------
@@ -71,7 +79,9 @@ namespace bw
 
         /// Releases everything. Without it, Alt-Tabbing away while holding a
         /// key sends its WM_KEYUP to another window and the key stays "down".
+        void OnFocusGained() noexcept;
         void OnFocusLost() noexcept;
+        void OnMouseLeave() noexcept;
 
         /// Clears edge state and deltas. Called after each simulation step.
         void EndUpdate() noexcept;
@@ -97,6 +107,8 @@ namespace bw
         int32_t _mouseDeltaX = 0;
         int32_t _mouseDeltaY = 0;
         bool    _hasMousePosition = false;
+        bool    _mouseInside      = false;
+        bool    _hasFocus         = false;
 
         int32_t _wheelRaw = 0;
     };

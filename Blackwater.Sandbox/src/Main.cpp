@@ -7,6 +7,7 @@
 
 #include <DirectXMath.h>
 #include <windows.h>
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -129,67 +130,100 @@ namespace
                         indices);
     }
 
-    constexpr float kWalkSpeed = 12.0f;   // world units per second
+    constexpr float kWalkSpeed = 4.0f;    // world units per second
 
     // ----------------------------------------------------------------------
     // Ground grid
     // ----------------------------------------------------------------------
-    constexpr int   kGridHalfExtent = 10;   // lines from -10 to +10
+    // The isometric camera shows at most ~25 units from its target in any
+    // direction, so a +-50 grid that follows the camera never shows its edge.
+    constexpr int   kGridHalfExtent = 50;
     constexpr float kGridY          = 0.0f;
+
+    // The axes must reach as far as the camera can pan, plus what it shows.
+    constexpr float kAxisHalfLength = 200.0f;
+
+    // The axes sit a hair above the grid. Drawn exactly on it, an axis and
+    // the grid line beneath it would have *almost* the same depth -- rounding
+    // decides which wins, pixel by pixel, and the axis flickers ("z-fighting").
+    constexpr float kAxisY = kGridY + 0.01f;
 
     const XMFLOAT4 kGridColour  = { 0.22f, 0.26f, 0.30f, 1.0f };
     const XMFLOAT4 kAxisXColour = { 0.60f, 0.22f, 0.22f, 1.0f };   // reddish: the X axis
     const XMFLOAT4 kAxisZColour = { 0.22f, 0.32f, 0.60f, 1.0f };   // bluish:  the Z axis
 
+    // ----------------------------------------------------------------------
+    // Camera panning
+    // ----------------------------------------------------------------------
+    constexpr float   kPanSpeed       = 12.0f;   // world units per second, on screen
+    constexpr int32_t kPanEdgePixels  = 8;       // cursor this close to an edge pans
+
     //
-    // Builds the grid as a LINELIST: every two indices are one segment.
+    // Collects line segments into a LINELIST mesh: every two indices are one
+    // segment.
     //
-    // Returns a Mesh by value even though Mesh is non-copyable and
-    // non-movable. Since C++17, `return Mesh(...)` does not create a temporary
-    // to be copied or moved -- the object is constructed directly in the
-    // caller's storage ("guaranteed copy elision"). That is what lets a
-    // factory function produce an immovable type.
+    class LineBuilder
+    {
+    public:
+        void Add(XMFLOAT3 from, XMFLOAT3 to, XMFLOAT4 colour)
+        {
+            // Lines have no surface, so the normal is a placeholder: lines are
+            // drawn with the unlit pixel shader, which ignores it.
+            constexpr XMFLOAT3 up{ 0.0f, 1.0f, 0.0f };
+
+            _indices.push_back(static_cast<uint32_t>(_vertices.size()));
+            _vertices.push_back({ from, up, colour });
+            _indices.push_back(static_cast<uint32_t>(_vertices.size()));
+            _vertices.push_back({ to, up, colour });
+        }
+
+        //
+        // Returns a Mesh by value even though Mesh is non-copyable and
+        // non-movable. Since C++17, `return Mesh(...)` does not create a
+        // temporary to be copied or moved -- the object is constructed
+        // directly in the caller's storage ("guaranteed copy elision").
+        //
+        // The vectors can die afterwards: Mesh copied their contents into
+        // IMMUTABLE GPU buffers in its constructor.
+        //
+        bw::Mesh Build(ID3D11Device* device) const
+        {
+            return bw::Mesh(device,
+                            _vertices.data(), _vertices.size(), sizeof(Vertex),
+                            _indices,
+                            D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        }
+
+    private:
+        std::vector<Vertex>   _vertices;
+        std::vector<uint32_t> _indices;
+    };
+
+    //
+    // A square grid centred on the origin. It is drawn moved to wherever the
+    // camera looks, so it has no axes of its own -- those stay at the origin.
     //
     bw::Mesh MakeGrid(ID3D11Device* device)
     {
-        std::vector<Vertex>   vertices;
-        std::vector<uint32_t> indices;
-
-        // Lines have no surface, so the normal is a placeholder: the grid is
-        // drawn with the unlit pixel shader, which ignores it.
-        constexpr XMFLOAT3 up{ 0.0f, 1.0f, 0.0f };
-
-        const auto addLine = [&](XMFLOAT3 from, XMFLOAT3 to, XMFLOAT4 colour)
-        {
-            indices.push_back(static_cast<uint32_t>(vertices.size()));
-            vertices.push_back({ from, up, colour });
-            indices.push_back(static_cast<uint32_t>(vertices.size()));
-            vertices.push_back({ to, up, colour });
-        };
-
+        LineBuilder lines;
         const auto extent = static_cast<float>(kGridHalfExtent);
 
         for (int i = -kGridHalfExtent; i <= kGridHalfExtent; ++i)
         {
             const auto offset = static_cast<float>(i);
-
-            // Line running along X, at z = offset. The one through the origin
-            // is the X axis.
-            addLine({ -extent, kGridY, offset }, { extent, kGridY, offset },
-                    i == 0 ? kAxisXColour : kGridColour);
-
-            // Line running along Z, at x = offset. The one through the origin
-            // is the Z axis.
-            addLine({ offset, kGridY, -extent }, { offset, kGridY, extent },
-                    i == 0 ? kAxisZColour : kGridColour);
+            lines.Add({ -extent, kGridY, offset }, { extent, kGridY, offset }, kGridColour);
+            lines.Add({ offset, kGridY, -extent }, { offset, kGridY, extent }, kGridColour);
         }
 
-        // The vectors die when this function returns. That is fine: Mesh
-        // copied their contents into IMMUTABLE GPU buffers in its constructor.
-        return bw::Mesh(device,
-                        vertices.data(), vertices.size(), sizeof(Vertex),
-                        indices,
-                        D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        return lines.Build(device);
+    }
+
+    bw::Mesh MakeAxes(ID3D11Device* device)
+    {
+        LineBuilder lines;
+        lines.Add({ -kAxisHalfLength, kAxisY, 0.0f }, { kAxisHalfLength, kAxisY, 0.0f }, kAxisXColour);
+        lines.Add({ 0.0f, kAxisY, -kAxisHalfLength }, { 0.0f, kAxisY, kAxisHalfLength }, kAxisZColour);
+        return lines.Build(device);
     }
 
     constexpr float kCubeHalfSize   = 1.0f;    // the cube mesh spans -1..+1
@@ -217,6 +251,7 @@ namespace
                             "VSMain", "PSUnlit", kInputLayout)
             , _cube(MakeCube(GetGraphics().Device()))
             , _grid(MakeGrid(GetGraphics().Device()))
+            , _axes(MakeAxes(GetGraphics().Device()))
             , _transforms(GetGraphics().Device())
             , _lighting(GetGraphics().Device())
         {
@@ -233,10 +268,14 @@ namespace
     protected:
         void OnUpdate(double fixedDeltaSeconds) override
         {
-            // Click first, then walk: a new click redirects the cube in the
+            const auto dt = static_cast<float>(fixedDeltaSeconds);
+
+            // Click first, before the camera moves: the click picks what was
+            // on screen. Then walk, so a new click redirects the cube in the
             // same step it arrives.
             SetTargetOnRightClick();
-            Walk(static_cast<float>(fixedDeltaSeconds));
+            PanCamera(dt);
+            Walk(dt);
 
             ++_updates;
             _secondAccumulator += fixedDeltaSeconds;
@@ -261,6 +300,10 @@ namespace
         {
             ++_frames;
 
+            // Remembered for picking: a click in the next update should hit
+            // what this frame showed.
+            _renderAlpha = static_cast<float>(alpha);
+
             // Draw the cube *between* its last two simulation positions, so
             // walking stays smooth at any refresh rate. Drawing _position
             // directly would judder. This interpolated value is for drawing
@@ -274,9 +317,10 @@ namespace
             const float aspect =
                 static_cast<float>(graphics.Width()) / static_cast<float>(graphics.Height());
 
-            // The camera never moves, so it needs no alpha. View and projection
-            // are the same for every object this frame, so combine them once.
-            const XMMATRIX viewProjection = _camera.View() * _camera.Projection(aspect);
+            // The camera pans, so it is interpolated like the cube. View and
+            // projection are the same for every object this frame, so combine
+            // them once.
+            const XMMATRIX viewProjection = _camera.View(t) * _camera.Projection(aspect);
 
             // Shared by every draw below. Only the transforms buffer's
             // *contents* change per draw.
@@ -284,9 +328,18 @@ namespace
             _transforms.BindToVertexStage(context, 0);
             _lighting.BindToPixelStage(context, 1);
 
-            // Ground: unlit. Its vertices are already in world space.
             _unlitShader.Bind(context);
-            DrawMesh(_grid, XMMatrixIdentity(), viewProjection);
+
+            DrawMesh(_axes, XMMatrixIdentity(), viewProjection);
+
+            // The grid follows the camera, snapped to whole units: it moves in
+            // steps of exactly one cell, which lands every line on a line that
+            // was already there. To the eye the grid stays put and never ends.
+            const XMFLOAT3 cameraTarget = _camera.Target(t);
+            DrawMesh(_grid,
+                     XMMatrixTranslation(std::round(cameraTarget.x), 0.0f,
+                                         std::round(cameraTarget.z)),
+                     viewProjection);
 
             // Everything else is lit.
             _litShader.Bind(context);
@@ -359,7 +412,8 @@ namespace
                 static_cast<float>(input.MouseX()),
                 static_cast<float>(input.MouseY()),
                 static_cast<float>(graphics.Width()),
-                static_cast<float>(graphics.Height()));
+                static_cast<float>(graphics.Height()),
+                _renderAlpha);
 
             XMFLOAT3 hit{};
             if (bw::IntersectGroundPlane(ray, kGridY, hit))
@@ -368,6 +422,64 @@ namespace
                 _walking = true;
             }
             // No hit -- the ray points at the sky. Keep doing whatever we were.
+        }
+
+        //
+        // Arrow keys, or the cursor at a window edge, pan the camera.
+        //
+        void PanCamera(float deltaSeconds)
+        {
+            // Every step, moving or not -- the same rule as Walk.
+            _camera.BeginStep();
+
+            const bw::Input& input = GetWindow().GetInput();
+
+            // Losing focus already releases the keys; this also stops edge
+            // panning while you work in another window.
+            if (!input.HasFocus())
+            {
+                return;
+            }
+
+            // Screen directions: +x right, +y up. Each source adds -1, 0 or +1.
+            float x = 0.0f;
+            float y = 0.0f;
+
+            if (input.IsKeyDown(VK_LEFT))  { x -= 1.0f; }
+            if (input.IsKeyDown(VK_RIGHT)) { x += 1.0f; }
+            if (input.IsKeyDown(VK_UP))    { y += 1.0f; }
+            if (input.IsKeyDown(VK_DOWN))  { y -= 1.0f; }
+
+            // MouseX/Y keep their last value after the cursor leaves, so the
+            // edge only counts while the cursor is actually inside.
+            if (input.IsMouseInside())
+            {
+                const auto& graphics = GetGraphics();
+                const auto  width    = static_cast<int32_t>(graphics.Width());
+                const auto  height   = static_cast<int32_t>(graphics.Height());
+                const int32_t mx = input.MouseX();
+                const int32_t my = input.MouseY();
+
+                if (mx < kPanEdgePixels)           { x -= 1.0f; }
+                if (mx >= width - kPanEdgePixels)  { x += 1.0f; }
+                if (my < kPanEdgePixels)           { y += 1.0f; }   // pixel y grows downwards
+                if (my >= height - kPanEdgePixels) { y -= 1.0f; }
+            }
+
+            // Key and edge pointing the same way must not add up.
+            x = std::clamp(x, -1.0f, 1.0f);
+            y = std::clamp(y, -1.0f, 1.0f);
+
+            // Diagonal: (1, 1) is ~1.41 long, so without normalising, panning
+            // diagonally would be 41% faster than straight.
+            const float length = std::sqrt(x * x + y * y);
+            if (length == 0.0f)
+            {
+                return;
+            }
+
+            const float step = kPanSpeed * deltaSeconds / length;
+            _camera.Pan(x * step, y * step);
         }
 
         //
@@ -411,6 +523,7 @@ namespace
         bw::Shader                     _unlitShader;
         bw::Mesh                       _cube;
         bw::Mesh                       _grid;
+        bw::Mesh                       _axes;
         bw::ConstantBuffer<Transforms> _transforms;
         bw::ConstantBuffer<Lighting>   _lighting;
 
@@ -420,6 +533,8 @@ namespace
         XMFLOAT3 _previousPosition{};
         XMFLOAT3 _target{};
         bool     _walking = false;
+
+        float    _renderAlpha = 1.0f;   // alpha of the last frame drawn
 
         double   _secondAccumulator = 0.0;
         uint32_t _frames            = 0;

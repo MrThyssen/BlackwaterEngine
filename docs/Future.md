@@ -7,17 +7,17 @@
 |---|---|---|---|
 | **Audio** | Sound engine (miniaudio, Windows + macOS) | `Blackwater.Audio` — [spec](Audio.md) | now |
 | **Metal backend** | macOS renderer behind the RHI | `Blackwater.RHI.Metal` | M5 |
-| **Physics / collision** | 2D collision, walkability, trigger volumes, AoE queries | `Blackwater.Physics` — [spec](Physics.md) | M8 |
+| **Physics / collision** | 2D collision, walkability, trigger volumes, AoE queries | `Blackwater.Physics` — [spec](Physics.md) | M8 → M12 |
 | **CI** | GitHub Actions: build + run tests on every pull request | `.github/workflows/` | M4 |
-| **Debug overlay / profiler** | Dear ImGui: frame graphs, console, debug-draw toggles, live state | Reads engine data, never changes it | M4 |
-| **Lighting & shading** | Directional light → Blinn-Phong → shadows | Shaders + a lighting constant buffer | M3 → M6 |
-| **UI / HUD** | Health bars, ability hotbar, raid frames (not ImGui) | Draws 2D on top of the frame | M9 |
-| **Asset pipeline** | `.meta` sidecars, SQLite asset database, import/validate models and textures | Separate tool + editor | M6 |
+| **Debug overlay / profiler** | Dear ImGui: frame graphs, console, debug-draw toggles, live state | Reads engine data, never changes it | M6 |
+| **Lighting & shading** | Directional light → Blinn-Phong → shadows | Shaders + a lighting constant buffer | M3 → M10 |
+| **UI / HUD** | Health bars, ability hotbar, hero portraits (not ImGui) | Draws 2D on top of the frame | M13 |
+| **Asset pipeline** | `.meta` sidecars, SQLite asset database, import/validate models and textures | Separate tool + editor | M10 |
 | **Editor** | `Blackwater.Editor` — **Avalonia**, Windows + macOS | Its own .NET project | E0 anytime |
 | **Lua scripting** | Gameplay scripts, triggers | Embedded Lua behind a small API | later |
 | **Particles / VFX** | Spell effects, dust, sparks | Its own renderer pass | after combat |
 | **Gamepad** | XInput controller support | Feeds `Input` like the mouse does | anytime |
-| **Save / load** | Serialise game state | Plain data, no renderer | M11 |
+| **Save / load** | Serialise game state | Plain data, no renderer | M14 |
 | **Logging** | Levels, categories, file output | Tiny, used by everyone | M4 |
 
 ## Developing on macOS

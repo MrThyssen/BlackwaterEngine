@@ -50,7 +50,47 @@ Built in this order — each one only once the previous plays well.
 
 ---
 
-## 4. Open questions
+## 4. Combat rules
+
+Raid feel without WoW's full combat model. Fights are about **positioning**, not cast-watching.
+
+| | Decision |
+|---|---|
+| **Casting** | No cast bars, no interrupts. Abilities fire, then resolve |
+| **Resource** | Mana only |
+| **Hit table** | Hit or miss, plus crit. **Facing** still matters for cones and cleaves |
+| **Timing** | **Impact**: damage is set when an ability fires; who is hit is decided when the telegraph expires or the projectile lands, so dodging works |
+| **Line of sight** | Spells and telegraphs respect it — "hide behind the pillar" |
+| **Threat** | Minimal, in M9: per-enemy threat list, attack the top, taunt jumps to the top. Boss target rules (random, farthest, not-the-target) read the same list |
+| **Time** | No pause, no slow-motion. `F10` opens the menu |
+| **RNG** | Seeded and deterministic, so a wipe can be replayed |
+
+### Soldiers
+
+Small companion units fight beside the heroes. They are a resource for hero abilities: a meat
+shield, corpses for a necromancer to raise, targets for a support hero's heals and buffs
+(damage, attack speed).
+
+- Dozens on screen: AI stays cheap — follow, attack, avoid danger. Separation keeps them from
+  clumping.
+- Death is a state: a corpse stays for a while and can be raised.
+- Commands stay at follow / hold / attack my target — no micromanagement.
+- Soldiers and the AI heroes read the same **danger map** that telegraphs write into.
+
+### UI
+
+- 3 hero portraits with health and mana; health bars over units. No raid frames, no click-to-heal.
+- **Boss warnings**: timers and "move" alerts, read from the encounter's own timeline data.
+- **Combat log and damage meter.**
+
+### Encounters
+
+Rebuilt WoW fights serve as internal test encounters with placeholder names. Shipped bosses are
+original; simple archetypes (tank-and-spank) are fine with their own name, setting and twist.
+
+---
+
+## 5. Open questions
 
 - [ ] The hero you start with — class and role?
 - [ ] The three heroes: fixed party, or recruited along the way?

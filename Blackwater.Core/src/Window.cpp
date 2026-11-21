@@ -175,6 +175,25 @@ namespace bw
             // captured and dragged left of the window (or onto a monitor to
             // the left) would read -5 as 65531.
             _input.OnMouseMove(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+
+            // Windows only reports the cursor *leaving* if asked, and the
+            // request is one-shot: it must be renewed after every
+            // WM_MOUSELEAVE. Without it, MouseX/Y would freeze at the last
+            // position inside -- an edge pan would never stop.
+            // PORT(M5): SDL3 reports leaving on its own.
+            if (!_trackingMouseLeave)
+            {
+                TRACKMOUSEEVENT track{};
+                track.cbSize    = sizeof(track);
+                track.dwFlags   = TME_LEAVE;
+                track.hwndTrack = _hwnd;
+                _trackingMouseLeave = ::TrackMouseEvent(&track) != FALSE;
+            }
+            return 0;
+
+        case WM_MOUSELEAVE:
+            _trackingMouseLeave = false;
+            _input.OnMouseLeave();
             return 0;
 
         case WM_MOUSEWHEEL:
@@ -189,6 +208,10 @@ namespace bw
         case WM_RBUTTONUP:   HandleMouseButton(MouseButton::Right,  false, lparam); return 0;
         case WM_MBUTTONDOWN: HandleMouseButton(MouseButton::Middle, true,  lparam); return 0;
         case WM_MBUTTONUP:   HandleMouseButton(MouseButton::Middle, false, lparam); return 0;
+
+        case WM_SETFOCUS:
+            _input.OnFocusGained();
+            return 0;
 
         case WM_KILLFOCUS:
             _input.OnFocusLost();

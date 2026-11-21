@@ -172,13 +172,16 @@ Two tools, two jobs — neither replaces the other:
 |---|---|---|
 | Runs | **inside the running game**, drawn over the frame | as a separate application |
 | Used | while playing: mid-pull, while something goes wrong | while building content |
-| For | fps/frame graphs, console, debug-draw toggles, live entity state, cheats, pause/slow-mo | placing enemies, editing abilities and encounters, managing assets |
+| For | fps/frame graphs, console, debug-draw toggles, live entity state, cheats, pause/slow-mo | the whole world, Warcraft 3–style: terrain, units, abilities, items, triggers, AI, encounters |
 
-ImGui is for developers only. The player-facing UI (health bars, hotbar, raid frames) gets
+**The game is data-driven:** units, abilities, items, triggers and AI are data the editor
+writes and the game reads — never hard-coded in C++.
+
+ImGui is for developers only. The player-facing UI (health bars, hotbar, hero portraits) gets
 its own UI system later.
 
 **Debug drawing** (lines, circles, boxes, arrows in world space, with or without depth
-testing) is engine-level and arrives with ImGui in M4 — aggro radii, AoE zones, paths and
+testing) is engine-level and arrives with ImGui in M6 — aggro radii, AoE zones, paths and
 collision shapes all need to be *seen*.
 
 ---
@@ -217,30 +220,46 @@ Specs: [Audio](docs/Audio.md), [Physics](docs/Physics.md). Work areas and workfl
 
 Stories and tasks per milestone: [docs/Backlog.md](docs/Backlog.md).
 
-| # | Milestone | Outcome |
+Tech where it unblocks, then **fun checkpoints with cubes** before content: if dodging a
+boss isn't tense with cubes, art won't fix it.
+
+| # | Milestone | Outcome | Proves |
+|---|---|---|---|
+| **M0** ✅ | Heartbeat | Window, D3D11 device + flip-model swap chain, fixed-timestep loop | |
+| **M1** ✅ | First geometry | Buffers, runtime HLSL, constant buffers, a spinning cube | |
+| **M2** ✅ | Camera & ground | Input, ground grid, screen→world picking | |
+| **M3** ✅ | **MVP: move a cube** | Fixed isometric camera; right-click → the cube walks there; one directional light | |
+| **M4** | Foundations | `Blackwater.Tests` + CTest; CI; logging; RenderDoc; repo ready; crash dumps + leak reports | two people can work safely |
+| **M5** | **Cross-platform** | RHI; D3D11 behind it; SDL3 window + input; Metal backend; UTF-8 everywhere; file-system module; macOS CI. **The MVP runs on both** | the Mac works from here on |
+| **M6** | Debug tools | **ImGui** overlay + console; debug drawing; game clock (pause, time scale); command-line args. Built once, on both platforms | we can see inside the game |
+| **M7** | Data & game objects | Game object model; units and abilities defined in **data files**, hot-reloaded; hashed string IDs; scene save/load; config file | the editor has something to edit |
+| **M8** | **Combat prototype** (cubes) | One hero, 4 abilities from data; a boss with telegraphed AoE resolved on impact; health, mana, cooldowns; seeded RNG; combat events + log + damage meter; sound; ImGui HUD. **`Trinity` target is created** | **fun checkpoint 1** |
+| **M9** | **Raid prototype** (cubes) | Three heroes, selection, follow; soldiers; minimal threat; enemy AI + danger map; boss phases + warnings | **fun checkpoint 2** |
+| M10 | Assets & models | Resource manager; `.meta` sidecars + **SQLite asset database**; glTF meshes, textures, materials; shadows | |
+| M11 | Animation | Skeletons, skinning, quaternions, idle/walk clips | |
+| M12 | World | Terrain; walkability, A\*, collision; **trigger system**; camera follow | |
+| M13 | UI | Text rendering; HUD, hotbar, hero portraits, boss warnings | |
+| M14 | RPG & story | Stats, items, dialogue, quests, save/load | |
+
+**Editor track (Avalonia, Warcraft 3–style).** Every engine system gets a runtime half and an
+editor half; each editor milestone follows its engine half.
+
+| # | Editor | After |
 |---|---|---|
-| **M0** ✅ | Heartbeat | Window, D3D11 device + flip-model swap chain, fixed-timestep loop |
-| **M1** ✅ | First geometry | Buffers, runtime HLSL, constant buffers, a spinning cube |
-| **M2** ✅ | Camera & ground | Input, ground grid, screen→world picking (orbit camera — replaced in M3) |
-| **M3** | **MVP: move a cube** | Fixed isometric camera ✅; right-click → the cube walks there (straight line, interpolated); one directional light so the cube reads as a cube |
-| **M4** | Tests, collaboration & debug tools | `Blackwater.Tests` + CTest; CI; logging; debug drawing; **ImGui** overlay + console; game clock (pause, time scale); command-line args; crash dumps |
-| **M5** | **Cross-platform** | RHI; D3D11 moved behind it; SDL3 window + input; Metal backend; **UTF-8 everywhere**; file-system module; macOS presets + CI. **The MVP runs on both** |
-| **M6** | Assets & models | Resource manager; string IDs; `.meta` sidecars + **SQLite asset database**; config file; glTF meshes, textures, materials |
-| **M7** | Animation | Skeletons, skinning, quaternions, idle/walk clips |
-| **M8** | World | Game object model; walkability grid, A\*, collision; trigger volumes; level loading; camera follow + **panning** (screen edges, arrow keys). **`Trinity` target is created** |
-| **M9** | Combat | Ability hotbar (`1 2 3`, `Q W E D`), cooldowns, an enemy; AoE shapes; combat events + log; state machines for abilities and boss phases |
-| **M10** | Party | Three heroes: selection and follow AI |
-| **M11** | RPG & story | Stats, items, dialogue, quest flags, save/load |
+| **E0** | Shell on Windows + macOS | anytime |
+| **E1** | Live engine viewport (`Blackwater.Interop`); *Test map* button | M5 |
+| **E2** | **Object editor**: units, abilities, items as tables, hot-reloaded into the game | M7–M8 |
+| **E3** | **Map editor**: place units and doodads, save/load maps | M7 |
+| E4 | Asset browser | M10 |
+| E5 | Terrain editor | M12 |
+| E6 | Trigger editor | M12 |
+| E7 | AI editor | M9, M12 |
 
-**Editor track (Avalonia):** **E0** shell on Windows + macOS (anytime) · **E1** live engine
-viewport via `Blackwater.Interop` (after M5) · **E2** asset browser on the asset database
-(with M6).
+Tests come before cross-platform on purpose: the RHI refactor moves a lot of code, and
+tests prove nothing broke. Debug tools come after it, so they are built once.
 
-Tests and debug tools come before cross-platform on purpose: the RHI refactor moves a lot of
-code, and tests are what prove nothing broke.
-
-Audio runs alongside from M4. Full triage of engine systems — what we build, when, and what
-we skip: [docs/EngineSystems.md](docs/EngineSystems.md).
+Full triage of engine systems — what we build, when, and what we skip:
+[docs/EngineSystems.md](docs/EngineSystems.md).
 
 ---
 
@@ -272,8 +291,9 @@ we skip: [docs/EngineSystems.md](docs/EngineSystems.md).
 
 **Open:**
 - [ ] Test framework for M4: **doctest** (single header) vs a hand-rolled one
-- [ ] glTF parsing for M6: **cgltf** (single header) vs hand-written
-- [ ] Game object model for M8: components on game objects vs full ECS
+- [ ] glTF parsing for M10: **cgltf** (single header) vs hand-written
+- [ ] Game object model for M7: components on game objects vs full ECS
+- [ ] Triggers and AI for M12: data graphs the engine interprets vs a scripting language (Lua)
 - [ ] Exact isometric pitch: true isometric (35.26°) vs game-style (~30°)
 - [ ] Repo licence
 - [ ] Final name for the game

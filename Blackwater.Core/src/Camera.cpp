@@ -1,5 +1,6 @@
 #include "Blackwater/Camera.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace DirectX;   // fine in a .cpp -- never in a header
@@ -41,7 +42,37 @@ namespace bw
     {
     }
 
-    XMMATRIX XM_CALLCONV Camera::View() const noexcept
+    void Camera::Pan(float right, float up) noexcept
+    {
+        const float yaw = _settings.yawRadians;
+
+        // The screen's right and up, flattened onto the ground. "Up" on
+        // screen is the direction the camera faces, ignoring its tilt; "right"
+        // is that turned 90 degrees clockwise when seen from above.
+        const float upX    = std::sin(yaw), upZ    =  std::cos(yaw);
+        const float rightX = std::cos(yaw), rightZ = -std::sin(yaw);
+
+        // The camera looks down at pitch degrees, so ground running "up" the
+        // screen is foreshortened: one unit of it covers only sin(pitch) of
+        // the screen distance one unit of "right" does. Dividing by sin(pitch)
+        // makes both directions move equally fast *on screen*.
+        const float upOnGround = up / std::sin(_settings.pitchRadians);
+
+        const float limit = _settings.panLimit;
+        _target.x = std::clamp(_target.x + right * rightX + upOnGround * upX, -limit, limit);
+        _target.z = std::clamp(_target.z + right * rightZ + upOnGround * upZ, -limit, limit);
+    }
+
+    XMFLOAT3 Camera::Target(float alpha) const noexcept
+    {
+        return {
+            _previousTarget.x + (_target.x - _previousTarget.x) * alpha,
+            _previousTarget.y + (_target.y - _previousTarget.y) * alpha,
+            _previousTarget.z + (_target.z - _previousTarget.z) * alpha,
+        };
+    }
+
+    XMMATRIX XM_CALLCONV Camera::View(float alpha) const noexcept
     {
         // Spherical coordinates around the target, left-handed (+Z forward).
         // Yaw 0 would put the eye on the -Z side; 45 degrees swings it to the
@@ -51,7 +82,8 @@ namespace bw
         const float distance   = _settings.distance;
         const float horizontal = distance * std::cos(pitch);
 
-        const XMVECTOR target = XMLoadFloat3(&_target);
+        const XMFLOAT3 drawTarget = Target(alpha);
+        const XMVECTOR target     = XMLoadFloat3(&drawTarget);
 
         const XMVECTOR eye = XMVectorAdd(target, XMVectorSet(
             -horizontal * std::sin(yaw),
@@ -75,9 +107,12 @@ namespace bw
 
     Ray Camera::ScreenToWorldRay(float pixelX, float pixelY,
                                  float viewportWidth,
-                                 float viewportHeight) const noexcept
+                                 float viewportHeight,
+                                 float alpha) const noexcept
     {
-        const XMMATRIX view       = View();
+        // The view the player was looking at when they clicked, so the ray
+        // goes through what was under the cursor -- even mid-pan.
+        const XMMATRIX view       = View(alpha);
         const XMMATRIX projection = Projection(viewportWidth / viewportHeight);
 
         // Unproject runs the rendering transform backwards: pixel -> NDC ->

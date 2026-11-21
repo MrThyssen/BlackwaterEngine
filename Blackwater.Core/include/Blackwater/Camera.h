@@ -2,7 +2,8 @@
 
 //
 // The fixed isometric camera: a locked angle and an orthographic projection.
-// No rotation, no zoom -- so nothing to interpolate.
+// No rotation, no zoom. It only pans: the point it looks at (the target) moves
+// across the ground, interpolated like everything else that moves.
 //
 
 // PORT(M5): DirectXMath supports ARM, but needs verifying with clang on macOS.
@@ -49,20 +50,43 @@ namespace bw
             float distance     = 50.0f;
             float nearPlane    = 0.1f;
             float farPlane     = 200.0f;
+
+            /// The target stays within +-panLimit on X and Z.
+            float panLimit     = 100.0f;
         };
 
         explicit Camera(const Settings& settings = Settings{});
 
+        // ------------------------------------------------------------------
+        // Simulation: called from OnUpdate
+        // ------------------------------------------------------------------
+
+        /// Call at the start of every simulation step, moving or not -- the
+        /// same rule as the cube's _previousPosition.
+        void BeginStep() noexcept { _previousTarget = _target; }
+
+        /// Moves the target by screen-aligned amounts, in world units:
+        /// +right moves the view right on screen, +up moves it up.
+        void Pan(float right, float up) noexcept;
+
+        // ------------------------------------------------------------------
+        // Queries. alpha blends the previous step (0) into the current one
+        // (1); pass the alpha the frame was drawn with.
+        // ------------------------------------------------------------------
+
+        [[nodiscard]] DirectX::XMFLOAT3 Target(float alpha = 1.0f) const noexcept;
+
         /// XM_CALLCONV selects __vectorcall on x64, so XMMATRIX values travel
         /// in SIMD registers instead of through memory.
-        [[nodiscard]] DirectX::XMMATRIX XM_CALLCONV View() const noexcept;
+        [[nodiscard]] DirectX::XMMATRIX XM_CALLCONV View(float alpha = 1.0f) const noexcept;
         [[nodiscard]] DirectX::XMMATRIX XM_CALLCONV Projection(float aspectRatio) const noexcept;
 
         /// The world-space ray under a pixel. With an orthographic projection
         /// every such ray points the same way -- only its origin moves.
         [[nodiscard]] Ray ScreenToWorldRay(float pixelX, float pixelY,
                                            float viewportWidth,
-                                           float viewportHeight) const noexcept;
+                                           float viewportHeight,
+                                           float alpha = 1.0f) const noexcept;
 
     private:
         Settings _settings;
@@ -70,5 +94,6 @@ namespace bw
         // Storage type, not a SIMD type: XMFLOAT3 is three plain floats,
         // XMVECTOR is a 16-byte-aligned register type for computation.
         DirectX::XMFLOAT3 _target{ 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 _previousTarget{ 0.0f, 0.0f, 0.0f };
     };
 }

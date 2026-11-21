@@ -101,6 +101,17 @@ namespace bw
         _mouseX = x;
         _mouseY = y;
         _hasMousePosition = true;
+        _mouseInside      = true;
+    }
+
+    void Input::OnMouseLeave() noexcept
+    {
+        _mouseInside = false;
+    }
+
+    void Input::OnFocusGained() noexcept
+    {
+        _hasFocus = true;
     }
 
     void Input::OnMouseWheel(int32_t rawDelta) noexcept
@@ -110,6 +121,8 @@ namespace bw
 
     void Input::OnFocusLost() noexcept
     {
+        _hasFocus = false;
+
         _keysDown.fill(false);
         _buttonsDown.fill(false);
 

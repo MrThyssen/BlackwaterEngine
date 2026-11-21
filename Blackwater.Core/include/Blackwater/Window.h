@@ -83,5 +83,6 @@ namespace bw
         uint32_t _height    = 0;
         bool     _minimized = false;
         bool     _resized   = false;
+        bool     _trackingMouseLeave = false;
     };
 }
